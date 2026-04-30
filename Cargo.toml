@@ -36,6 +36,7 @@ bench-internals = ["complex-nums"]
 
 [dev-dependencies]
 criterion = "0.8.2"
+divan = "0.1.21"
 fearless_simd = "0.4.0"
 fftw = "0.8.0"
 rand = "0.10.1"
@@ -84,6 +85,10 @@ harness = false
 name = "realfft"
 harness = false
 
+[[bench]]
+name = "divan_compare"
+harness = false
+
 [profile.profiling]
 inherits = "release"
 debug = true
@@ -92,4 +97,3 @@ debug = true
 all-features = true
 
 [lints.rust]
-
