@@ -31,22 +31,18 @@ mod parallel;
 pub mod planner;
 
 pub use algorithms::dit::{fft_32_dit_with_planner_and_opts, fft_64_dit_with_planner_and_opts};
-pub use algorithms::r2c::{
-    c2r_fft_f32, c2r_fft_f32_with_planner, c2r_fft_f32_with_planner_and_scratch, c2r_fft_f64,
-    c2r_fft_f64_with_planner, c2r_fft_f64_with_planner_and_scratch, r2c_fft_f32,
-    r2c_fft_f32_with_planner, r2c_fft_f64, r2c_fft_f64_with_planner,
-};
+pub use algorithms::r2c::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
 
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_fft_interleaved_for {
     ($func_name:ident, $precision:ty, $fft_func:ident, $deinterleaving_func: ident, $planner:ty) => {
-        /// FFT Interleaved -- this is an alternative to [`fft_64`]/[`fft_32`] in the case where
-        /// the input data is a array of [`Complex`].
-        ///
-        /// Analogous to [fft_64_dit_with_planner_and_opts] except for the input format.
+        /// FFT Interleaved — alternative entry point when the input data is a
+        /// slice of [`Complex`]. Analogous to the
+        /// `fft_*_dit_with_planner_and_opts` family except for the input format.
         ///
         /// **Note**: This function has to make a deinterleaved copy of the data.
-        /// For maximum performance with minimal memory usage, use [fft_64_dit_with_planner_and_opts].
+        /// For maximum performance with minimal memory usage, use the split-array
+        /// `fft_*_dit_with_planner_and_opts` API directly.
         pub fn $func_name(
             signal: &mut [Complex<$precision>],
             direction: Direction,

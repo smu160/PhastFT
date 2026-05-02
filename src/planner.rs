@@ -3,8 +3,6 @@
 //! pre-computing twiddle factors based on the input signal length, as well as the
 //! direction of the FFT.
 
-use crate::options::Options;
-
 /// Reverse is for running the Inverse Fast Fourier Transform (IFFT)
 /// Forward is for running the regular FFT
 #[derive(Copy, Clone)]
@@ -178,9 +176,6 @@ macro_rules! impl_planner_r2c_for {
             pub(crate) w_re: Vec<$precision>,
             /// Pre-computed untangle twiddle factors (imaginary parts), 0.5 folded in.
             pub(crate) w_im: Vec<$precision>,
-            /// Inner-FFT options. Cached at plan time so r2c/c2r entry points
-            /// don't recompute `Options::guess_options(half)` per call.
-            pub(crate) inner_opts: Options,
             /// Full real signal length N
             pub(crate) n: usize,
         }
@@ -193,14 +188,12 @@ macro_rules! impl_planner_r2c_for {
             /// Panics if `n` is not a power of 2 or `n < 4`.
             pub fn new(n: usize) -> Self {
                 assert!(n >= 4 && n.is_power_of_two(), "n must be a power of 2 >= 4");
-                let half = n / 2;
                 let (w_re, w_im) = $twiddle_fn(n);
 
                 Self {
-                    dit_planner: $dit_planner::new(half),
+                    dit_planner: $dit_planner::new(n / 2),
                     w_re,
                     w_im,
-                    inner_opts: Options::guess_options(half),
                     n,
                 }
             }

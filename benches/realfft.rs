@@ -10,11 +10,9 @@
 //! suffices and gives a self-contained PhastFT-vs-realfft comparison.
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use phastft::options::Options;
 use phastft::planner::{PlannerR2c32, PlannerR2c64};
-use phastft::{
-    c2r_fft_f32_with_planner_and_scratch, c2r_fft_f64_with_planner_and_scratch,
-    r2c_fft_f32_with_planner, r2c_fft_f64_with_planner,
-};
+use phastft::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
 use realfft::RealFftPlanner;
 
 mod common;
@@ -33,13 +31,20 @@ macro_rules! r2c_bench {
                 // Plan + output buffers allocated outside iter_batched —
                 // planning and allocation cost is excluded from per-sample timings.
                 let phast_planner = <$planner>::new(len);
+                let phast_opts = Options::guess_options(len / 2);
                 let mut phast_re = vec![0 as $float; len / 2 + 1];
                 let mut phast_im = vec![0 as $float; len / 2 + 1];
                 g.bench_function(BenchmarkId::new(ids::PHASTFT_R2C, len), |b| {
                     b.iter_batched(
                         || real_signal::<$float>(len),
                         |input| {
-                            $fft_fn(&input, &mut phast_re, &mut phast_im, &phast_planner);
+                            $fft_fn(
+                                &input,
+                                &mut phast_re,
+                                &mut phast_im,
+                                &phast_planner,
+                                &phast_opts,
+                            );
                             std::hint::black_box((&mut phast_re, &mut phast_im));
                         },
                         BatchSize::SmallInput,
@@ -72,6 +77,7 @@ macro_rules! c2r_bench {
         fn $name(c: &mut Criterion) {
             bench_at_sizes(c, $group, LENGTHS, throughput_real::<$float>, |g, len| {
                 let phast_planner = <$planner>::new(len);
+                let phast_opts = Options::guess_options(len / 2);
                 let mut phast_output = vec![0 as $float; len];
                 let mut phast_scratch_re = vec![0 as $float; len / 2];
                 let mut phast_scratch_im = vec![0 as $float; len / 2];
@@ -84,6 +90,7 @@ macro_rules! c2r_bench {
                                 &input_im,
                                 &mut phast_output,
                                 &phast_planner,
+                                &phast_opts,
                                 &mut phast_scratch_re,
                                 &mut phast_scratch_im,
                             );
@@ -114,34 +121,10 @@ macro_rules! c2r_bench {
     };
 }
 
-r2c_bench!(
-    r2c_f32,
-    f32,
-    PlannerR2c32,
-    r2c_fft_f32_with_planner,
-    groups::R2C_F32
-);
-r2c_bench!(
-    r2c_f64,
-    f64,
-    PlannerR2c64,
-    r2c_fft_f64_with_planner,
-    groups::R2C_F64
-);
-c2r_bench!(
-    c2r_f32,
-    f32,
-    PlannerR2c32,
-    c2r_fft_f32_with_planner_and_scratch,
-    groups::C2R_F32
-);
-c2r_bench!(
-    c2r_f64,
-    f64,
-    PlannerR2c64,
-    c2r_fft_f64_with_planner_and_scratch,
-    groups::C2R_F64
-);
+r2c_bench!(r2c_f32, f32, PlannerR2c32, r2c_fft_f32, groups::R2C_F32);
+r2c_bench!(r2c_f64, f64, PlannerR2c64, r2c_fft_f64, groups::R2C_F64);
+c2r_bench!(c2r_f32, f32, PlannerR2c32, c2r_fft_f32, groups::C2R_F32);
+c2r_bench!(c2r_f64, f64, PlannerR2c64, c2r_fft_f64, groups::C2R_F64);
 
 criterion_group!(benches, r2c_f32, c2r_f32, r2c_f64, c2r_f64);
 criterion_main!(benches);

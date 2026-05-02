@@ -16,23 +16,17 @@ pub fn deinterleave<T: Copy>(input: &[T]) -> (Vec<T>, Vec<T>) {
     input.chunks_exact(2).map(|c| (c[0], c[1])).unzip()
 }
 
-/// Utility function to separate a slice of [`Complex64``]
-/// into a single vector of Complex Number Structs.
+/// Splits a slice of [`Complex<f64>`] into separate real and imaginary vectors.
 ///
-/// # Panics
-///
-/// Panics if `reals.len() != imags.len()`.
+/// Inverse of [`combine_re_im`].
 pub fn deinterleave_complex64(signal: &[Complex<f64>]) -> (Vec<f64>, Vec<f64>) {
     let complex_t: &[f64] = cast_slice(signal);
     deinterleave(complex_t)
 }
 
-/// Utility function to separate a slice of [`Complex32``]
-/// into a single vector of Complex Number Structs.
+/// Splits a slice of [`Complex<f32>`] into separate real and imaginary vectors.
 ///
-/// # Panics
-///
-/// Panics if `reals.len() != imags.len()`.
+/// Inverse of [`combine_re_im`].
 pub fn deinterleave_complex32(signal: &[Complex<f32>]) -> (Vec<f32>, Vec<f32>) {
     let complex_t: &[f32] = cast_slice(signal);
     deinterleave(complex_t)
