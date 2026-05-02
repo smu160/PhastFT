@@ -186,7 +186,7 @@ if you want to understand the trade-offs on modern hardware. Its author is not a
 The trade-offs we chose are:
 
 - **In-place** FFT with a separate bit-reversal step reduces memory traffic and peak memory usage compared to out-of-place and auto-sorter FFTs
-- **Radix-2** Cooley-Turkey FFT: radix-4 and split-radix do less math, but require complex and slow bit reversals.
+- **Radix-2** Cooley-Tukey FFT: radix-4 and split-radix do less math, but require complex and slow bit reversals.
   - We still need to experiment with fusing multiple radix-2 passes to reduce memory traffic in single-threaded scenarios
 - [**CO-BRAVO**](https://dl.acm.org/doi/abs/10.1145/1248377.1248411) cache-optimal, SIMD-accelerated bit reversal trounces other algorithms.
 - **Decimation in time** maps better to SIMD fused multiply-adds than decimation-in-frequency, and CO-BRAVO makes skipping bit reversal less appealing.
