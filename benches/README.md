@@ -172,51 +172,6 @@ median, normalized against RustFFT's median; whiskers are the IQR in
 that normalized space; the dashed `y = 1.0` line is RustFFT by
 construction. PNGs land in the current working directory.
 
-### Optional: pyFFTW comparison
-
-The `requirements.txt` venv is **only** needed for the pyFFTW-based
-comparisons in the project README — neither `benchmark_plots.py` nor
-`plot_criterion_overlay.py` require it. If you need pyFFTW:
-
-```bash
-cd benches && python3 -m venv .env && source .env/bin/activate
-pip install -r requirements.txt
-cd ../pyphastft && pip install .
-```
-
-macOS on Apple Silicon: see [pyFFTW Issue #352][pyfftw-352] for the
-install workaround.
-
-[pyfftw-352]: https://github.com/pyFFTW/pyFFTW/issues/352#issuecomment-1945444558
-
-## Reference benchmark configuration
-
-Absolute timings will vary by hardware; the numbers in the project
-README come from the reference machine below.
-
-### Libraries
-
-| Library / package | Version          | Language  | Compilation flags                                                                |
-|-------------------|------------------|-----------|----------------------------------------------------------------------------------|
-| `FFTW3`           | 3.3.10-1 amd64   | C         | `-O3`                                                                            |
-| `RustFFT`         | 6.2.0            | Rust      | `-C opt-level=3 --edition=2021; codegen-units = 1; lto = true; panic = "abort"`  |
-| `realfft`         | 3.5.0            | Rust      | release profile; same `Cargo.toml` settings as RustFFT                           |
-| `PhastFT`         | 0.1.0            | Rust      | `-C opt-level=3 --edition=2021; codegen-units = 1; lto = true; panic = "abort"`  |
-| `NumPy`           | 1.26.4           | Python, C | N/A                                                                              |
-| `pyFFTW`          | 0.13.1           | Python, C | N/A                                                                              |
-
-### Reference machine
-
-|                           |                                                                                                 |
-|---------------------------|-------------------------------------------------------------------------------------------------|
-| **CPU**                   | AMD Ryzen 9 7950X (SMT off)                                                                     |
-| L1d / L1i cache           | 512 KiB / 512 KiB (16 instances each)                                                           |
-| L2 / L3 cache             | 16 MiB (16 instances) / 64 MiB (2 instances)                                                    |
-| **Memory**                | 64 GiB (2 × 32 GiB DIMM, 6000 MHz)                                                              |
-| **OS**                    | Linux 7950x 6.1.0-17-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.69-1 (2023-12-30) x86_64 GNU/Linux |
-| CPU freq scaling governor | Performance                                                                                     |
-| **Rust**                  | nightly (rustc 1.79.0-nightly, 7f2fc33da, 2024-04-22)                                           |
-
 ## Profiling
 
 From the repo root:
