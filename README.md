@@ -113,24 +113,6 @@ c2r_fft_f64(
 
 ### Python (coming soon)
 
-Follow the instructions at <https://rustup.rs/> to install Rust.
-
-Then you can install PhastFT itself:
-```bash
-pip install numpy
-pip install git+https://github.com/QuState/PhastFT#subdirectory=pyphastft
-```
-
-```python
-import numpy as np
-from pyphastft import fft
-
-sig_re = np.asarray(sig_re, dtype=np.float64)
-sig_im = np.asarray(sig_im, dtype=np.float64)
-
-fft(a_re, a_im)
-```
-
 ### Normalization
 
 `phastft` only scales the output of the inverse FFT. Namely, running IFFT(x)
@@ -159,14 +141,18 @@ instructions to reproduce benchmark results and
 plots are available [here](https://github.com/QuState/PhastFT/tree/main/benches#readme).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/benchmarks_bar_plot_4_12.png" width="400" title="PhastFT vs. RustFFT vs. FFTW3" alt="PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/benchmarks_bar_plot_13_29.png" width="400" title="PhastFT vs. RustFFT vs. FFTW3" alt="PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/py_benchmarks_bar_plot_0_8.png" width="400" title="PhastFT vs. NumPy FFT vs. pyFFTW" alt="PhastFT vs. NumPy FFT vs. pyFFTW">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/py_benchmarks_bar_plot_9_28.png" width="400" title="PhastFT vs. NumPy FFT vs. pyFFTW" alt="PhastFT vs. NumPy FFT vs. pyFFTW">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
+
+<p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple
+    M2 (4 P + 4 E cores; 24 GB memory; macOS
+    26.4.1.</em></p>
 
 ## How is it so fast?
 
@@ -175,10 +161,11 @@ PhastFT is designed around the capabilities and limitations of modern hardware
 
 The two major bottlenecks in FFT are the **CPU cycles** and **memory accesses**.
 
-Most literature on FFT focuses on reducing the amount of math operations,
-but today's CPUs are heavily memory-bottlenecked for any amount of data that doesn't fit into the cache.
-It doesn't matter how much or how little CPU instructions you need to execute
-if the CPU spends most of the time just waiting on memory anyway!
+Most literature on FFT focuses on reducing the amount of arithmetic operations,
+but today's CPUs are heavily memory-bottlenecked for any amount of data that
+doesn't fit into the cache. It doesn't matter how much or how little CPU
+instructions you need to execute if the CPU spends most of the time just
+waiting on memory anyway!
 
 [Notes on FFTs for implementers](https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/) is a good read
 if you want to understand the trade-offs on modern hardware. Its author is not affiliated with PhastFT.

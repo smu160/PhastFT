@@ -43,7 +43,7 @@ skipped with a warning so missing entries surface immediately.
     uv run benches/plot_criterion_overlay.py --baseline "PhastFT DIT"
     uv run benches/plot_criterion_overlay.py --out-dir target/overlays
 
-Outputs: `criterion_overlay_<group>_<log2_lo>_<log2_hi>.{png,svg}` in the
+Outputs: `criterion_overlay_<group>_<log2_lo>_<log2_hi>.svg` in the
 output directory, two files per group (small/large halves).
 """
 
@@ -377,7 +377,6 @@ def plot_half(
     )
 
     fig.tight_layout()
-    fig.savefig(out_stem.with_suffix(".png"), dpi=300)
     fig.savefig(out_stem.with_suffix(".svg"))
     plt.close(fig)
 
@@ -417,7 +416,7 @@ def plot_group(
             1 for s in series_names if any(sz in group_data[s] for sz in half)
         )
         print(
-            f"wrote {out_stem.with_suffix('.png')} "
+            f"wrote {out_stem.with_suffix('.svg')} "
             f"({len(half)} sizes, {active} series active)"
         )
 
@@ -452,7 +451,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         "--out-dir",
         type=Path,
         default=Path.cwd(),
-        help="Directory for output PNG/SVG files (default: cwd)",
+        help="Directory for output SVG files (default: cwd)",
     )
     parser.add_argument(
         "--baseline",

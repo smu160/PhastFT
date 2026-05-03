@@ -77,7 +77,7 @@ uv run benches/plot_criterion_overlay.py --out-dir target/overlays    # write el
 ```
 
 The script walks `target/criterion/<group>/<id>/<size>/new/{sample,benchmark}.json`
-and emits `criterion_overlay_<group>_<log2_lo>_<log2_hi>.{png,svg}` —
+and emits `criterion_overlay_<group>_<log2_lo>_<log2_hi>.svg` —
 two files per group (small-N and large-N halves split at the size
 list's midpoint). The `GROUPS` registry in the script holds both the
 humanized title and per-group default baseline (`RustFFT` for the
