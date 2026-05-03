@@ -2,18 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.4.0-rc.1] - 2026-05-03
 
 ### Features
 
-- Add the `rustfmt.toml` config actual
+- Add the rustfmt.toml config actual
 - Remove nightly requirement for portable SIMD
-- Add Rayon to the `f32` codepath
+- Add Rayon to the f32 codepath
 - Add a tunable for the smallest chunk size beyond which the input will not be split further
 - Add initial experimental BRAVO impl
-- Add DiT kernel wrappers to act as an inlining barrier, otherwise the entirety
-  of DiT kernels ends up rolled up into one function on ARM and collapses under
-  register pressure
+- Add DiT kernel wrappers to act as an inlining barrier, otherwise the entirety of DiT kernels ends up rolled up into one function on ARM and collapses under register pressure
 - Add precision configuration to our own benchmark example
 - Add precision configuration to benchmark scripts for rustfft and fftw
 - Add a benchmark for planner
@@ -156,6 +154,7 @@ to place usage examples more prominently since we also use the same README for d
 - Mark mode as unused to suppress compiler warning (for now)
 - Replace zip_low()+zip_high() with interleave(), should have better performance on avx2
 - Polyfill interleave() until the upstream fearless_simd PR is merged
+- Consolidate R2C/C2R API to one variant per direction
 
 ### Documentation
 
@@ -169,6 +168,9 @@ to place usage examples more prominently since we also use the same README for d
 - Document running the newly added benchmark
 - Clarify COBRAVO comment
 - Add a comment on register splilling
+- *(benches)* Remove old benchmark machine configuration
+- Fix typo in README
+- Update README, benchmark plots, and fix wording
 
 ### Performance
 
@@ -227,6 +229,8 @@ It has no meaningful effect on benchmarks for PhastFT, but RustFFT is 15% faster
 - Remove old script for generating twiddles
 - Drop unused import
 - Remove codelet control from planner now that it is always beneficial
+- Add `git-cliff` config and generated CHANGELOG.md
+- Remove old/irrelevant benchmark plots from readme
 
 ### Revert
 
