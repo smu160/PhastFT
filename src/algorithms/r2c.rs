@@ -86,10 +86,9 @@ fn simd_deinterleave_f64<S: Simd>(
         let out_off = blk * LANES;
         let a = f64x4::from_slice(simd, &input[in_off..in_off + LANES]);
         let b = f64x4::from_slice(simd, &input[in_off + LANES..in_off + 2 * LANES]);
-        a.unzip_low(b)
-            .store_slice(&mut output_re[out_off..out_off + LANES]);
-        a.unzip_high(b)
-            .store_slice(&mut output_im[out_off..out_off + LANES]);
+        let (re, im) = a.deinterleave(b);
+        re.store_slice(&mut output_re[out_off..out_off + LANES]);
+        im.store_slice(&mut output_im[out_off..out_off + LANES]);
     }
     for k in (n_blocks * LANES)..half {
         output_re[k] = input[2 * k];
@@ -115,10 +114,9 @@ fn simd_deinterleave_f32<S: Simd>(
         let out_off = blk * LANES;
         let a = f32x8::from_slice(simd, &input[in_off..in_off + LANES]);
         let b = f32x8::from_slice(simd, &input[in_off + LANES..in_off + 2 * LANES]);
-        a.unzip_low(b)
-            .store_slice(&mut output_re[out_off..out_off + LANES]);
-        a.unzip_high(b)
-            .store_slice(&mut output_im[out_off..out_off + LANES]);
+        let (re, im) = a.deinterleave(b);
+        re.store_slice(&mut output_re[out_off..out_off + LANES]);
+        im.store_slice(&mut output_im[out_off..out_off + LANES]);
     }
     for k in (n_blocks * LANES)..half {
         output_re[k] = input[2 * k];
@@ -435,9 +433,7 @@ fn simd_c2r_preprocess_f32<S: Simd>(
 // ---------------------------------------------------------------------------
 //
 // Inverse of `simd_deinterleave_*`. Reads LANES contiguous reals from each of
-// z_re / z_im and stores 2*LANES interleaved reals to output, using
-// zip_low/zip_high (the inverse of unzip_low/unzip_high). On NEON the pair
-// lowers to two register-level interleave ops; on AVX2 it's two `vunpck*`s.
+// z_re / z_im and stores 2*LANES interleaved reals to output.
 
 #[inline(always)] // required by fearless_simd
 fn simd_interleave_f64<S: Simd>(simd: S, z_re: &[f64], z_im: &[f64], output: &mut [f64]) {
@@ -452,10 +448,9 @@ fn simd_interleave_f64<S: Simd>(simd: S, z_re: &[f64], z_im: &[f64], output: &mu
         let out_off = blk * (2 * LANES);
         let re = f64x4::from_slice(simd, &z_re[in_off..in_off + LANES]);
         let im = f64x4::from_slice(simd, &z_im[in_off..in_off + LANES]);
-        re.zip_low(im)
-            .store_slice(&mut output[out_off..out_off + LANES]);
-        re.zip_high(im)
-            .store_slice(&mut output[out_off + LANES..out_off + 2 * LANES]);
+        let (lo, hi) = re.interleave(im);
+        lo.store_slice(&mut output[out_off..out_off + LANES]);
+        hi.store_slice(&mut output[out_off + LANES..out_off + 2 * LANES]);
     }
     for k in (n_blocks * LANES)..half {
         output[2 * k] = z_re[k];
@@ -476,10 +471,9 @@ fn simd_interleave_f32<S: Simd>(simd: S, z_re: &[f32], z_im: &[f32], output: &mu
         let out_off = blk * (2 * LANES);
         let re = f32x8::from_slice(simd, &z_re[in_off..in_off + LANES]);
         let im = f32x8::from_slice(simd, &z_im[in_off..in_off + LANES]);
-        re.zip_low(im)
-            .store_slice(&mut output[out_off..out_off + LANES]);
-        re.zip_high(im)
-            .store_slice(&mut output[out_off + LANES..out_off + 2 * LANES]);
+        let (lo, hi) = re.interleave(im);
+        lo.store_slice(&mut output[out_off..out_off + LANES]);
+        hi.store_slice(&mut output[out_off + LANES..out_off + 2 * LANES]);
     }
     for k in (n_blocks * LANES)..half {
         output[2 * k] = z_re[k];
