@@ -31,20 +31,26 @@ mod parallel;
 pub mod planner;
 
 pub use algorithms::dit::{fft_32_dit_with_planner_and_opts, fft_64_dit_with_planner_and_opts};
+pub use algorithms::r2c::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
 
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_fft_interleaved_for {
     ($func_name:ident, $precision:ty, $fft_func:ident, $deinterleaving_func: ident, $planner:ty) => {
-        /// FFT Interleaved -- this is an alternative to [`fft_64`]/[`fft_32`] in the case where
-        /// the input data is a array of [`Complex`].
-        ///
-        /// Analogous to [fft_64_dit_with_planner_and_opts] except for the input format.
+        /// FFT Interleaved — alternative entry point when the input data is a
+        /// slice of [`Complex`]. Analogous to the
+        /// `fft_*_dit_with_planner_and_opts` family except for the input format.
         ///
         /// **Note**: This function has to make a deinterleaved copy of the data.
-        /// For maximum performance with minimal memory usage, use [fft_64_dit_with_planner_and_opts].
-        pub fn $func_name(signal: &mut [Complex<$precision>], planner: &$planner, opts: &Options) {
+        /// For maximum performance with minimal memory usage, use the split-array
+        /// `fft_*_dit_with_planner_and_opts` API directly.
+        pub fn $func_name(
+            signal: &mut [Complex<$precision>],
+            direction: Direction,
+            planner: &$planner,
+            opts: &Options,
+        ) {
             let (mut reals, mut imags) = $deinterleaving_func(signal);
-            $fft_func(&mut reals, &mut imags, planner, opts);
+            $fft_func(&mut reals, &mut imags, direction, planner, opts);
             signal.copy_from_slice(&combine_re_im(&reals, &imags))
         }
     };
@@ -74,9 +80,13 @@ macro_rules! impl_fft_interleaved_with_planner {
         /// the `_with_planner_and_opts` variant that automatically guesses options.
         ///
         /// For better control over options, use the `_with_planner_and_opts` variant.
-        pub fn $func_name(signal: &mut [Complex<$precision>], planner: &$planner) {
+        pub fn $func_name(
+            signal: &mut [Complex<$precision>],
+            direction: Direction,
+            planner: &$planner,
+        ) {
             let opts = Options::guess_options(signal.len());
-            $fft_with_opts_func(signal, planner, &opts);
+            $fft_with_opts_func(signal, direction, planner, &opts);
         }
     };
 }
@@ -104,8 +114,8 @@ macro_rules! impl_fft_interleaved {
         /// For better performance when running multiple FFTs of the same size,
         /// consider using the `_with_planner` variant.
         pub fn $func_name(signal: &mut [Complex<$precision>], direction: Direction) {
-            let planner = <$planner>::new(signal.len(), direction);
-            $fft_with_planner_func(signal, &planner);
+            let planner = <$planner>::new(signal.len());
+            $fft_with_planner_func(signal, direction, &planner);
         }
     };
 }
@@ -126,9 +136,14 @@ impl_fft_interleaved!(
 );
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f64 with pre-computed planner
-pub fn fft_64_dit_with_planner(reals: &mut [f64], imags: &mut [f64], planner: &PlannerDit64) {
+pub fn fft_64_dit_with_planner(
+    reals: &mut [f64],
+    imags: &mut [f64],
+    direction: Direction,
+    planner: &PlannerDit64,
+) {
     let opts = Options::guess_options(reals.len());
-    algorithms::dit::fft_64_dit_with_planner_and_opts(reals, imags, planner, &opts);
+    algorithms::dit::fft_64_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f64.
@@ -140,7 +155,7 @@ pub fn fft_64_dit_with_planner(reals: &mut [f64], imags: &mut [f64], planner: &P
 /// # Arguments
 ///
 /// * `reals` - Real parts of the complex numbers (modified in-place)
-/// * `imags` - Imaginary parts of the complex numbers (modified in-place)  
+/// * `imags` - Imaginary parts of the complex numbers (modified in-place)
 /// * `direction` - Forward or inverse transform
 ///
 /// # Panics
@@ -159,14 +174,19 @@ pub fn fft_64_dit_with_planner(reals: &mut [f64], imags: &mut [f64], planner: &P
 /// ```
 ///
 pub fn fft_64_dit(reals: &mut [f64], imags: &mut [f64], direction: Direction) {
-    let planner = PlannerDit64::new(reals.len(), direction);
-    fft_64_dit_with_planner(reals, imags, &planner);
+    let planner = PlannerDit64::new(reals.len());
+    fft_64_dit_with_planner(reals, imags, direction, &planner);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f32 with pre-computed planner
-pub fn fft_32_dit_with_planner(reals: &mut [f32], imags: &mut [f32], planner: &PlannerDit32) {
+pub fn fft_32_dit_with_planner(
+    reals: &mut [f32],
+    imags: &mut [f32],
+    direction: Direction,
+    planner: &PlannerDit32,
+) {
     let opts = Options::guess_options(reals.len());
-    fft_32_dit_with_planner_and_opts(reals, imags, planner, &opts);
+    fft_32_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f32.
@@ -178,7 +198,7 @@ pub fn fft_32_dit_with_planner(reals: &mut [f32], imags: &mut [f32], planner: &P
 /// # Arguments
 ///
 /// * `reals` - Real parts of the complex numbers (modified in-place)
-/// * `imags` - Imaginary parts of the complex numbers (modified in-place)  
+/// * `imags` - Imaginary parts of the complex numbers (modified in-place)
 /// * `direction` - Forward or inverse transform
 ///
 /// # Panics
@@ -197,8 +217,8 @@ pub fn fft_32_dit_with_planner(reals: &mut [f32], imags: &mut [f32], planner: &P
 /// ```
 ///
 pub fn fft_32_dit(reals: &mut [f32], imags: &mut [f32], direction: Direction) {
-    let planner = PlannerDit32::new(reals.len(), direction);
-    fft_32_dit_with_planner(reals, imags, &planner);
+    let planner = PlannerDit32::new(reals.len());
+    fft_32_dit_with_planner(reals, imags, direction, &planner);
 }
 
 #[cfg(test)]
@@ -219,7 +239,7 @@ mod tests {
                 let num_points = 5;
 
                 // this test _should_ always fail at this stage
-                let _ = <$planner>::new(num_points, Direction::Forward);
+                let _ = <$planner>::new(num_points);
             }
         };
     }
@@ -242,14 +262,20 @@ mod tests {
                 // size of the generated twiddle factors is half the size of the input.
                 // In this case, we have an input of size 1024 (used for mp3), but we tell the planner the
                 // input size is 16.
-                let mut planner = <$planner>::new(n, Direction::Forward);
+                let mut planner = <$planner>::new(n);
 
                 let mut reals = vec![0.0; num_points];
                 let mut imags = vec![0.0; num_points];
                 let opts = Options::guess_options(reals.len());
 
                 // this call should panic
-                $fft_with_opts_and_plan(&mut reals, &mut imags, &mut planner, &opts);
+                $fft_with_opts_and_plan(
+                    &mut reals,
+                    &mut imags,
+                    Direction::Forward,
+                    &mut planner,
+                    &opts,
+                );
             }
         };
     }
@@ -400,8 +426,8 @@ mod tests {
 
         for n in 5..=14 {
             let size = 1 << n;
-            let _ = PlannerDit64::with_mode(size, Direction::Forward, PlannerMode::Tune);
-            let _ = PlannerDit32::with_mode(size, Direction::Forward, PlannerMode::Tune);
+            let _ = PlannerDit64::with_mode(size, PlannerMode::Tune);
+            let _ = PlannerDit32::with_mode(size, PlannerMode::Tune);
         }
     }
 
@@ -418,11 +444,10 @@ mod tests {
             let mut reals = reals_original.clone();
             let mut imags = imags_original.clone();
 
-            let fwd = PlannerDit64::with_mode(size, Direction::Forward, PlannerMode::Tune);
-            let inv = PlannerDit64::with_mode(size, Direction::Reverse, PlannerMode::Tune);
+            let planner = PlannerDit64::with_mode(size, PlannerMode::Tune);
 
-            fft_64_dit_with_planner(&mut reals, &mut imags, &fwd);
-            fft_64_dit_with_planner(&mut reals, &mut imags, &inv);
+            fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+            fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Reverse, &planner);
 
             for i in 0..size {
                 assert_float_closeness(reals[i], reals_original[i], 1e-10);

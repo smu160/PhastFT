@@ -24,12 +24,11 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 
 ## Limitations
 
-- Only supports input with a length of `2^n` (i.e., a power of 2) -- input should be padded with zeros to the next power of 2
+- Only supports input with a length of `2^n` (i.e., a power of 2) -- if possible, input should be padded with zeros to the next power of 2
 
 ## Planned features
 
-- Real-to-complex FFT
-- Additional agorithms for non-power-of-2 FFTs
+- Additional algorithms for non-power-of-2 FFTs
 - Even more work on performance
 
 ## Quickstart
@@ -47,8 +46,8 @@ let mut imags: Vec<f64> = (1..=big_n).map(|i| i as f64).collect();
 fft_64_dit(&mut reals, &mut imags, Direction::Forward);
 
 // Or with a reusable planner for better performance with multiple FFTs
-let planner = PlannerDit64::new(big_n, Direction::Forward);
-fft_64_dit_with_planner(&mut reals, &mut imags, &planner);
+let planner = PlannerDit64::new(big_n);
+fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
 ```
 
 #### Complex Number Support (Interleaved Format)
@@ -73,25 +72,46 @@ fft_64_interleaved(&mut signal, Direction::Forward);
 Both `fft_32_interleaved` and `fft_64_interleaved` are available for `f32` and
 `f64` precision respectively.
 
+#### Real-Valued FFT (R2C)
+
+For purely real-valued input, the R2C transform is approximately 2x faster than
+running a full complex FFT with zeroed imaginary components. The output is the
+*compact* `N/2 + 1` complex spectrum. The remaining `N/2 - 1` bins can be
+derived via the conjugate symmetry `X[N - k] = conj(X[k])`.
+
+The same `PlannerR2c64` drives both directions. R2C is in-place (output
+buffers double as scratch for the inner half-length complex FFT). C2R takes
+caller-provided scratch buffers (`N/2` reals each for re and im); allocation
+is the caller's choice.
+
+```rust
+use phastft::{c2r_fft_f64, options::Options, planner::PlannerR2c64, r2c_fft_f64};
+
+let n = 1 << 16;
+let signal: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+
+let planner = PlannerR2c64::new(n);
+let opts = Options::guess_options(n / 2);
+
+let mut spec_re = vec![0.0; n / 2 + 1];
+let mut spec_im = vec![0.0; n / 2 + 1];
+r2c_fft_f64(&signal, &mut spec_re, &mut spec_im, &planner, &opts);
+
+let mut scratch_re = vec![0.0; n / 2];
+let mut scratch_im = vec![0.0; n / 2];
+let mut recovered = vec![0.0; n];
+c2r_fft_f64(
+    &spec_re,
+    &spec_im,
+    &mut recovered,
+    &planner,
+    &opts,
+    &mut scratch_re,
+    &mut scratch_im,
+);
+```
+
 ### Python (coming soon)
-
-Follow the instructions at <https://rustup.rs/> to install Rust.
-
-Then you can install PhastFT itself:
-```bash
-pip install numpy
-pip install git+https://github.com/QuState/PhastFT#subdirectory=pyphastft
-```
-
-```python
-import numpy as np
-from pyphastft import fft
-
-sig_re = np.asarray(sig_re, dtype=np.float64)
-sig_im = np.asarray(sig_im, dtype=np.float64)
-
-fft(a_re, a_im)
-```
 
 ### Normalization
 
@@ -121,14 +141,18 @@ instructions to reproduce benchmark results and
 plots are available [here](https://github.com/QuState/PhastFT/tree/main/benches#readme).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/benchmarks_bar_plot_4_12.png" width="400" title="PhastFT vs. RustFFT vs. FFTW3" alt="PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/benchmarks_bar_plot_13_29.png" width="400" title="PhastFT vs. RustFFT vs. FFTW3" alt="PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/py_benchmarks_bar_plot_0_8.png" width="400" title="PhastFT vs. NumPy FFT vs. pyFFTW" alt="PhastFT vs. NumPy FFT vs. pyFFTW">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/py_benchmarks_bar_plot_9_28.png" width="400" title="PhastFT vs. NumPy FFT vs. pyFFTW" alt="PhastFT vs. NumPy FFT vs. pyFFTW">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
+
+<p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple
+    M2 (4 P + 4 E cores; 24 GB memory; macOS
+    26.4.1.</em></p>
 
 ## How is it so fast?
 
@@ -137,10 +161,11 @@ PhastFT is designed around the capabilities and limitations of modern hardware
 
 The two major bottlenecks in FFT are the **CPU cycles** and **memory accesses**.
 
-Most literature on FFT focuses on reducing the amount of math operations,
-but today's CPUs are heavily memory-bottlenecked for any amount of data that doesn't fit into the cache.
-It doesn't matter how much or how little CPU instructions you need to execute
-if the CPU spends most of the time just waiting on memory anyway!
+Most literature on FFT focuses on reducing the amount of arithmetic operations,
+but today's CPUs are heavily memory-bottlenecked for any amount of data that
+doesn't fit into the cache. It doesn't matter how much or how little CPU
+instructions you need to execute if the CPU spends most of the time just
+waiting on memory anyway!
 
 [Notes on FFTs for implementers](https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/) is a good read
 if you want to understand the trade-offs on modern hardware. Its author is not affiliated with PhastFT.
@@ -148,7 +173,7 @@ if you want to understand the trade-offs on modern hardware. Its author is not a
 The trade-offs we chose are:
 
 - **In-place** FFT with a separate bit-reversal step reduces memory traffic and peak memory usage compared to out-of-place and auto-sorter FFTs
-- **Radix-2** Cooley-Turkey FFT: radix-4 and split-radix do less math, but require complex and slow bit reversals.
+- **Radix-2** Cooley-Tukey FFT: radix-4 and split-radix do less math, but require complex and slow bit reversals.
   - We still need to experiment with fusing multiple radix-2 passes to reduce memory traffic in single-threaded scenarios
 - [**CO-BRAVO**](https://dl.acm.org/doi/abs/10.1145/1248377.1248411) cache-optimal, SIMD-accelerated bit reversal trounces other algorithms.
 - **Decimation in time** maps better to SIMD fused multiply-adds than decimation-in-frequency, and CO-BRAVO makes skipping bit reversal less appealing.
