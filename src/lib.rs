@@ -58,7 +58,7 @@ macro_rules! impl_fft_interleaved_for {
 
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved_for!(
-    fft_32_interleaved_with_planner_and_opts,
+    fft_f32_dit_interleaved_with_planner_and_opts,
     f32,
     fft_f32_dit_with_planner_and_opts,
     deinterleave_complex32,
@@ -66,7 +66,7 @@ impl_fft_interleaved_for!(
 );
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved_for!(
-    fft_64_interleaved_with_planner_and_opts,
+    fft_f64_dit_interleaved_with_planner_and_opts,
     f64,
     fft_f64_dit_with_planner_and_opts,
     deinterleave_complex64,
@@ -93,16 +93,16 @@ macro_rules! impl_fft_interleaved_with_planner {
 
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved_with_planner!(
-    fft_32_interleaved_with_planner,
+    fft_f32_dit_interleaved_with_planner,
     f32,
-    fft_32_interleaved_with_planner_and_opts,
+    fft_f32_dit_interleaved_with_planner_and_opts,
     PlannerDit32
 );
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved_with_planner!(
-    fft_64_interleaved_with_planner,
+    fft_f64_dit_interleaved_with_planner,
     f64,
-    fft_64_interleaved_with_planner_and_opts,
+    fft_f64_dit_interleaved_with_planner_and_opts,
     PlannerDit64
 );
 
@@ -122,16 +122,16 @@ macro_rules! impl_fft_interleaved {
 
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved!(
-    fft_32_interleaved,
+    fft_f32_dit_interleaved,
     f32,
-    fft_32_interleaved_with_planner,
+    fft_f32_dit_interleaved_with_planner,
     PlannerDit32
 );
 #[cfg(feature = "complex-nums")]
 impl_fft_interleaved!(
-    fft_64_interleaved,
+    fft_f64_dit_interleaved,
     f64,
-    fft_64_interleaved_with_planner,
+    fft_f64_dit_interleaved_with_planner,
     PlannerDit64
 );
 
@@ -342,7 +342,7 @@ mod tests {
         let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f64).collect();
         let mut expected_imags = vec![0.0; big_n];
 
-        fft_64_interleaved(&mut actual_signal, Direction::Forward);
+        fft_f64_dit_interleaved(&mut actual_signal, Direction::Forward);
         fft_f64_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
 
         actual_signal
@@ -360,7 +360,7 @@ mod tests {
         let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f32).collect();
         let mut expected_imags = vec![0.0; big_n];
 
-        fft_32_interleaved(&mut actual_signal, Direction::Forward);
+        fft_f32_dit_interleaved(&mut actual_signal, Direction::Forward);
         fft_f32_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
 
         actual_signal

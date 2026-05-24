@@ -58,7 +58,7 @@ format with the `num_complex::Complex` type:
 ```rust
 use phastft::{
     planner::Direction,
-    fft_64_interleaved
+    fft_f64_dit_interleaved
 };
 use num_complex::Complex;
 
@@ -66,10 +66,10 @@ let big_n = 1 << 10;
 let mut signal: Vec<Complex<f64>> = (1..=big_n)
     .map(|i| Complex::new(i as f64, i as f64))
     .collect();
-fft_64_interleaved(&mut signal, Direction::Forward);
+fft_f64_dit_interleaved(&mut signal, Direction::Forward);
 ```
 
-Both `fft_32_interleaved` and `fft_64_interleaved` are available for `f32` and
+Both `fft_f32_dit_interleaved` and `fft_f64_dit_interleaved` are available for `f32` and
 `f64` precision respectively.
 
 #### Real-Valued FFT (R2C)
