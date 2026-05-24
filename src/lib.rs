@@ -393,7 +393,7 @@ mod tests {
 
             fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 
-            fft_f64_dit(&mut reals, &mut imags, Direction::Reverse);
+            fft_f64_dit(&mut reals, &mut imags, Direction::Inverse);
 
             for i in 0..size {
                 assert_float_closeness(reals[i], reals_original[i], 1e-10);
@@ -416,7 +416,7 @@ mod tests {
             imags.copy_from_slice(&imags_original);
 
             fft_f32_dit(&mut reals, &mut imags, Direction::Forward);
-            fft_f32_dit(&mut reals, &mut imags, Direction::Reverse);
+            fft_f32_dit(&mut reals, &mut imags, Direction::Inverse);
 
             for i in 0..size {
                 assert_float_closeness(reals[i], reals_original[i], 1e-7);
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn public_types_impl_standard_traits() {
         assert_eq!(Direction::Forward, Direction::Forward);
-        assert_ne!(Direction::Forward, Direction::Reverse);
+        assert_ne!(Direction::Forward, Direction::Inverse);
         assert_eq!(format!("{:?}", Direction::Forward), "Forward");
 
         let a = Options::guess_options(1 << 10);

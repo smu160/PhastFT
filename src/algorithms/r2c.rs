@@ -734,7 +734,7 @@ pub fn c2r_fft_f64_with_planner_and_opts(
     fft_f64_dit_with_planner_and_opts(
         scratch_re,
         scratch_im,
-        Direction::Reverse,
+        Direction::Inverse,
         &planner.dit_planner,
         opts,
     );
@@ -799,7 +799,7 @@ pub fn c2r_fft_f32_with_planner_and_opts(
     fft_f32_dit_with_planner_and_opts(
         scratch_re,
         scratch_im,
-        Direction::Reverse,
+        Direction::Inverse,
         &planner.dit_planner,
         opts,
     );

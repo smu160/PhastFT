@@ -57,7 +57,7 @@ phastft_c2c!(
     f32,
     PlannerDit32,
     fft_f32_dit_with_planner_and_opts,
-    Direction::Reverse,
+    Direction::Inverse,
     groups::C2C_INVERSE_F32
 );
 phastft_c2c!(
@@ -73,7 +73,7 @@ phastft_c2c!(
     f64,
     PlannerDit64,
     fft_f64_dit_with_planner_and_opts,
-    Direction::Reverse,
+    Direction::Inverse,
     groups::C2C_INVERSE_F64
 );
 

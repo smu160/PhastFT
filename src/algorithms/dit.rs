@@ -296,7 +296,7 @@ fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
     // `imags` are positional names, not semantic.
     let (reals, imags) = match direction {
         Direction::Forward => (reals, imags),
-        Direction::Reverse => (imags, reals),
+        Direction::Inverse => (imags, reals),
     };
 
     // DIT requires bit-reversed input
@@ -322,7 +322,7 @@ fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
     );
 
     // Scaling for inverse transform
-    if let Direction::Reverse = direction {
+    if let Direction::Inverse = direction {
         let scaling_factor = 1.0 / n as f64;
         for (z_re, z_im) in reals.iter_mut().zip(imags.iter_mut()) {
             *z_re *= scaling_factor;
@@ -365,7 +365,7 @@ fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
     // See `fft_f64_dit_with_planner_and_opts_impl` for the swap-trick rationale.
     let (reals, imags) = match direction {
         Direction::Forward => (reals, imags),
-        Direction::Reverse => (imags, reals),
+        Direction::Inverse => (imags, reals),
     };
 
     // DIT requires bit-reversed input
@@ -391,7 +391,7 @@ fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
     );
 
     // Scaling for inverse transform
-    if let Direction::Reverse = direction {
+    if let Direction::Inverse = direction {
         let scaling_factor = 1.0 / n as f32;
         for (z_re, z_im) in reals.iter_mut().zip(imags.iter_mut()) {
             *z_re *= scaling_factor;

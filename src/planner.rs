@@ -3,14 +3,14 @@
 //! pre-computing twiddle factors based on the input signal length, as well as the
 //! direction of the FFT.
 
-/// Reverse is for running the Inverse Fast Fourier Transform (IFFT)
+/// Inverse is for running the Inverse Fast Fourier Transform (IFFT)
 /// Forward is for running the regular FFT
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     /// Leave the exponent term in the twiddle factor alone
     Forward = 1,
     /// Multiply the exponent term in the twiddle factor by -1
-    Reverse = -1,
+    Inverse = -1,
 }
 
 macro_rules! impl_planner_dit_for {
