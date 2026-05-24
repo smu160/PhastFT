@@ -82,12 +82,12 @@ macro_rules! impl_planner_dit_for {
 impl_planner_dit_for!(
     PlannerDit64,
     f64,
-    crate::algorithms::dit::fft_64_dit_with_planner_and_opts
+    crate::algorithms::dit::fft_f64_dit_with_planner_and_opts
 );
 impl_planner_dit_for!(
     PlannerDit32,
     f32,
-    crate::algorithms::dit::fft_32_dit_with_planner_and_opts
+    crate::algorithms::dit::fft_f32_dit_with_planner_and_opts
 );
 
 // ---------------------------------------------------------------------------

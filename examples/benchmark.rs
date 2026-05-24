@@ -2,7 +2,7 @@ use std::env;
 use std::str::FromStr;
 
 use phastft::planner::{Direction, PlannerDit32, PlannerDit64};
-use phastft::{fft_32_dit_with_planner, fft_64_dit_with_planner};
+use phastft::{fft_f32_dit_with_planner, fft_f64_dit_with_planner};
 use utilities::{gen_random_signal_f32, gen_random_signal_f64};
 
 // macOS monotonic clock ticks at ~41 ns. At small n a single FFT is
@@ -30,7 +30,7 @@ fn bench32(n: usize, iterations: usize) {
 
         let now = std::time::Instant::now();
         for _ in 0..batch {
-            fft_32_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+            fft_f32_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
             std::hint::black_box(&mut reals);
             std::hint::black_box(&mut imags);
         }
@@ -53,7 +53,7 @@ fn bench64(n: usize, iterations: usize) {
 
         let now = std::time::Instant::now();
         for _ in 0..batch {
-            fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+            fft_f64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
             std::hint::black_box(&mut reals);
             std::hint::black_box(&mut imags);
         }

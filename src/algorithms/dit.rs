@@ -260,7 +260,7 @@ fn execute_dit_stage_f32<S: Simd>(
 ///
 /// Panics if input length is not a power of 2 or if real and imaginary arrays have different lengths
 ///
-pub fn fft_64_dit_with_planner_and_opts(
+pub fn fft_f64_dit_with_planner_and_opts(
     reals: &mut [f64],
     imags: &mut [f64],
     direction: Direction,
@@ -269,11 +269,11 @@ pub fn fft_64_dit_with_planner_and_opts(
 ) {
     // Dynamic dispatch overhead becomes really noticeable at small FFT sizes.
     // Dispatch only once at the top of the program to
-    dispatch!(planner.simd_level, simd => fft_64_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
+    dispatch!(planner.simd_level, simd => fft_f64_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
 }
 
 #[inline(always)] // required by fearless_simd
-fn fft_64_dit_with_planner_and_opts_impl<S: Simd>(
+fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
     simd: S,
     reals: &mut [f64],
     imags: &mut [f64],
@@ -334,8 +334,8 @@ fn fft_64_dit_with_planner_and_opts_impl<S: Simd>(
 /// DIT FFT for f32 with pre-computed planner and options
 ///
 /// Single-precision version of the DIT FFT algorithm.
-/// See [`fft_64_dit_with_planner_and_opts`] for `f64` version.
-pub fn fft_32_dit_with_planner_and_opts(
+/// See [`fft_f64_dit_with_planner_and_opts`] for `f64` version.
+pub fn fft_f32_dit_with_planner_and_opts(
     reals: &mut [f32],
     imags: &mut [f32],
     direction: Direction,
@@ -344,10 +344,10 @@ pub fn fft_32_dit_with_planner_and_opts(
 ) {
     // Dynamic dispatch overhead becomes really noticeable at small FFT sizes.
     // Dispatch only once at the top of the program to
-    dispatch!(planner.simd_level, simd => fft_32_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
+    dispatch!(planner.simd_level, simd => fft_f32_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
 }
 
-fn fft_32_dit_with_planner_and_opts_impl<S: Simd>(
+fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
     simd: S,
     reals: &mut [f32],
     imags: &mut [f32],
@@ -362,7 +362,7 @@ fn fft_32_dit_with_planner_and_opts_impl<S: Simd>(
     let log_n = n.ilog2() as usize;
     assert_eq!(log_n, planner.log_n);
 
-    // See `fft_64_dit_with_planner_and_opts_impl` for the swap-trick rationale.
+    // See `fft_f64_dit_with_planner_and_opts_impl` for the swap-trick rationale.
     let (reals, imags) = match direction {
         Direction::Forward => (reals, imags),
         Direction::Reverse => (imags, reals),

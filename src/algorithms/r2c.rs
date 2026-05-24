@@ -37,7 +37,9 @@
 
 use fearless_simd::{dispatch, f32x8, f64x4, Simd, SimdBase, SimdFloat};
 
-use crate::algorithms::dit::{fft_32_dit_with_planner_and_opts, fft_64_dit_with_planner_and_opts};
+use crate::algorithms::dit::{
+    fft_f32_dit_with_planner_and_opts, fft_f64_dit_with_planner_and_opts,
+};
 use crate::options::Options;
 use crate::planner::{Direction, PlannerR2c32, PlannerR2c64};
 
@@ -555,7 +557,7 @@ pub fn r2c_fft_f64(
     {
         let z_re = &mut output_re[..half];
         let z_im = &mut output_im[..half];
-        fft_64_dit_with_planner_and_opts(
+        fft_f64_dit_with_planner_and_opts(
             z_re,
             z_im,
             Direction::Forward,
@@ -617,7 +619,7 @@ pub fn r2c_fft_f32(
     {
         let z_re = &mut output_re[..half];
         let z_im = &mut output_im[..half];
-        fft_32_dit_with_planner_and_opts(
+        fft_f32_dit_with_planner_and_opts(
             z_re,
             z_im,
             Direction::Forward,
@@ -726,7 +728,7 @@ pub fn c2r_fft_f64(
         }
     );
 
-    fft_64_dit_with_planner_and_opts(
+    fft_f64_dit_with_planner_and_opts(
         scratch_re,
         scratch_im,
         Direction::Reverse,
@@ -791,7 +793,7 @@ pub fn c2r_fft_f32(
         }
     );
 
-    fft_32_dit_with_planner_and_opts(
+    fft_f32_dit_with_planner_and_opts(
         scratch_re,
         scratch_im,
         Direction::Reverse,
@@ -816,7 +818,7 @@ mod tests {
 
     use super::*;
     use crate::planner::Direction;
-    use crate::{fft_32_dit, fft_64_dit};
+    use crate::{fft_f32_dit, fft_f64_dit};
 
     fn assert_f32_relative_closeness(actual: f32, expected: f32, rel_eps: f32) {
         let denom = expected.abs().max(f32::EPSILON);
@@ -888,7 +890,7 @@ mod tests {
 
             let mut ref_re = input.clone();
             let mut ref_im = vec![0.0; n];
-            fft_64_dit(&mut ref_re, &mut ref_im, Direction::Forward);
+            fft_f64_dit(&mut ref_re, &mut ref_im, Direction::Forward);
 
             for k in 0..=half {
                 assert_float_closeness(r2c_re[k], ref_re[k], 1e-4);
@@ -910,7 +912,7 @@ mod tests {
 
             let mut ref_re: Vec<f32> = input.clone();
             let mut ref_im = vec![0.0f32; n];
-            fft_32_dit(&mut ref_re, &mut ref_im, Direction::Forward);
+            fft_f32_dit(&mut ref_re, &mut ref_im, Direction::Forward);
 
             for k in 0..=half {
                 assert_f32_relative_closeness(r2c_re[k], ref_re[k], 1e-2);

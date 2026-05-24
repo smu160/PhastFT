@@ -30,7 +30,7 @@ pub mod options;
 mod parallel;
 pub mod planner;
 
-pub use algorithms::dit::{fft_32_dit_with_planner_and_opts, fft_64_dit_with_planner_and_opts};
+pub use algorithms::dit::{fft_f32_dit_with_planner_and_opts, fft_f64_dit_with_planner_and_opts};
 pub use algorithms::r2c::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
 
 #[cfg(feature = "complex-nums")]
@@ -60,7 +60,7 @@ macro_rules! impl_fft_interleaved_for {
 impl_fft_interleaved_for!(
     fft_32_interleaved_with_planner_and_opts,
     f32,
-    fft_32_dit_with_planner_and_opts,
+    fft_f32_dit_with_planner_and_opts,
     deinterleave_complex32,
     PlannerDit32
 );
@@ -68,7 +68,7 @@ impl_fft_interleaved_for!(
 impl_fft_interleaved_for!(
     fft_64_interleaved_with_planner_and_opts,
     f64,
-    fft_64_dit_with_planner_and_opts,
+    fft_f64_dit_with_planner_and_opts,
     deinterleave_complex64,
     PlannerDit64
 );
@@ -136,21 +136,21 @@ impl_fft_interleaved!(
 );
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f64 with pre-computed planner
-pub fn fft_64_dit_with_planner(
+pub fn fft_f64_dit_with_planner(
     reals: &mut [f64],
     imags: &mut [f64],
     direction: Direction,
     planner: &PlannerDit64,
 ) {
     let opts = Options::guess_options(reals.len());
-    algorithms::dit::fft_64_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
+    algorithms::dit::fft_f64_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f64.
 ///
 /// This is a convenient wrapper that creates a planner automatically.
 /// For better performance when running multiple FFTs of the same size,
-/// consider using [`fft_64_dit_with_planner`].
+/// consider using [`fft_f64_dit_with_planner`].
 ///
 /// # Arguments
 ///
@@ -165,35 +165,35 @@ pub fn fft_64_dit_with_planner(
 /// # Example
 ///
 /// ```
-/// use phastft::{fft_64_dit, planner::Direction};
+/// use phastft::{fft_f64_dit, planner::Direction};
 ///
 /// let mut reals = vec![1.0, 0.0, 0.0, 0.0];
 /// let mut imags = vec![0.0; 4];
-/// fft_64_dit(&mut reals, &mut imags, Direction::Forward);
+/// fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 /// // Output is in normal order
 /// ```
 ///
-pub fn fft_64_dit(reals: &mut [f64], imags: &mut [f64], direction: Direction) {
+pub fn fft_f64_dit(reals: &mut [f64], imags: &mut [f64], direction: Direction) {
     let planner = PlannerDit64::new(reals.len());
-    fft_64_dit_with_planner(reals, imags, direction, &planner);
+    fft_f64_dit_with_planner(reals, imags, direction, &planner);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f32 with pre-computed planner
-pub fn fft_32_dit_with_planner(
+pub fn fft_f32_dit_with_planner(
     reals: &mut [f32],
     imags: &mut [f32],
     direction: Direction,
     planner: &PlannerDit32,
 ) {
     let opts = Options::guess_options(reals.len());
-    fft_32_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
+    fft_f32_dit_with_planner_and_opts(reals, imags, direction, planner, &opts);
 }
 
 /// FFT using Decimation-In-Time (DIT) algorithm for f32.
 ///
 /// This is a convenient wrapper that creates a planner automatically.
 /// For better performance when running multiple FFTs of the same size,
-/// consider using [`fft_32_dit_with_planner`].
+/// consider using [`fft_f32_dit_with_planner`].
 ///
 /// # Arguments
 ///
@@ -208,17 +208,17 @@ pub fn fft_32_dit_with_planner(
 /// # Example
 ///
 /// ```
-/// use phastft::{fft_32_dit, planner::Direction};
+/// use phastft::{fft_f32_dit, planner::Direction};
 ///
 /// let mut reals = vec![1.0, 0.0, 0.0, 0.0];
 /// let mut imags = vec![0.0; 4];
-/// fft_32_dit(&mut reals, &mut imags, Direction::Forward);
+/// fft_f32_dit(&mut reals, &mut imags, Direction::Forward);
 /// // Output is in normal order
 /// ```
 ///
-pub fn fft_32_dit(reals: &mut [f32], imags: &mut [f32], direction: Direction) {
+pub fn fft_f32_dit(reals: &mut [f32], imags: &mut [f32], direction: Direction) {
     let planner = PlannerDit32::new(reals.len());
-    fft_32_dit_with_planner(reals, imags, direction, &planner);
+    fft_f32_dit_with_planner(reals, imags, direction, &planner);
 }
 
 #[cfg(test)]
@@ -283,12 +283,12 @@ mod tests {
     wrong_num_points_in_planner!(
         wrong_num_points_in_planner_32,
         PlannerDit32,
-        fft_32_dit_with_planner_and_opts
+        fft_f32_dit_with_planner_and_opts
     );
     wrong_num_points_in_planner!(
         wrong_num_points_in_planner_64,
         PlannerDit64,
-        fft_64_dit_with_planner_and_opts
+        fft_f64_dit_with_planner_and_opts
     );
 
     macro_rules! test_fft_correctness {
@@ -330,8 +330,8 @@ mod tests {
         };
     }
 
-    test_fft_correctness!(fft_correctness_32, f32, fft_32_dit, 4, 9);
-    test_fft_correctness!(fft_correctness_64, f64, fft_64_dit, 4, 17);
+    test_fft_correctness!(fft_correctness_32, f32, fft_f32_dit, 4, 9);
+    test_fft_correctness!(fft_correctness_64, f64, fft_f64_dit, 4, 17);
 
     #[cfg(feature = "complex-nums")]
     #[test]
@@ -343,7 +343,7 @@ mod tests {
         let mut expected_imags = vec![0.0; big_n];
 
         fft_64_interleaved(&mut actual_signal, Direction::Forward);
-        fft_64_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
+        fft_f64_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
 
         actual_signal
             .iter()
@@ -361,7 +361,7 @@ mod tests {
         let mut expected_imags = vec![0.0; big_n];
 
         fft_32_interleaved(&mut actual_signal, Direction::Forward);
-        fft_32_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
+        fft_f32_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
 
         actual_signal
             .iter()
@@ -386,9 +386,9 @@ mod tests {
             reals.copy_from_slice(&reals_original);
             imags.copy_from_slice(&imags_original);
 
-            fft_64_dit(&mut reals, &mut imags, Direction::Forward);
+            fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 
-            fft_64_dit(&mut reals, &mut imags, Direction::Reverse);
+            fft_f64_dit(&mut reals, &mut imags, Direction::Reverse);
 
             for i in 0..size {
                 assert_float_closeness(reals[i], reals_original[i], 1e-10);
@@ -410,8 +410,8 @@ mod tests {
             reals.copy_from_slice(&reals_original);
             imags.copy_from_slice(&imags_original);
 
-            fft_32_dit(&mut reals, &mut imags, Direction::Forward);
-            fft_32_dit(&mut reals, &mut imags, Direction::Reverse);
+            fft_f32_dit(&mut reals, &mut imags, Direction::Forward);
+            fft_f32_dit(&mut reals, &mut imags, Direction::Reverse);
 
             for i in 0..size {
                 assert_float_closeness(reals[i], reals_original[i], 1e-7);

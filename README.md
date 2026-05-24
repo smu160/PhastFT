@@ -36,18 +36,18 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 ### Rust
 
 ```rust
-use phastft::{fft_64_dit, fft_64_dit_with_planner, planner::{Direction, PlannerDit64}};
+use phastft::{fft_f64_dit, fft_f64_dit_with_planner, planner::{Direction, PlannerDit64}};
 
 let big_n = 1 << 20;
 let mut reals: Vec<f64> = (1..=big_n).map(|i| i as f64).collect();
 let mut imags: Vec<f64> = (1..=big_n).map(|i| i as f64).collect();
 
 // Simple API
-fft_64_dit(&mut reals, &mut imags, Direction::Forward);
+fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 
 // Or with a reusable planner for better performance with multiple FFTs
 let planner = PlannerDit64::new(big_n);
-fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+fft_f64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
 ```
 
 #### Complex Number Support (Interleaved Format)
