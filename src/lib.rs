@@ -419,40 +419,4 @@ mod tests {
             }
         }
     }
-
-    #[test]
-    fn tune_mode_does_not_panic() {
-        use crate::planner::PlannerMode;
-
-        for n in 5..=14 {
-            let size = 1 << n;
-            let _ = PlannerDit64::with_mode(size, PlannerMode::Tune);
-            let _ = PlannerDit32::with_mode(size, PlannerMode::Tune);
-        }
-    }
-
-    #[test]
-    fn roundtrip_correctness_with_tune_mode() {
-        use crate::planner::PlannerMode;
-
-        for n in 5..12 {
-            let size = 1 << n;
-            let mut reals_original = vec![0.0f64; size];
-            let mut imags_original = vec![0.0f64; size];
-            gen_random_signal_f64(&mut reals_original, &mut imags_original);
-
-            let mut reals = reals_original.clone();
-            let mut imags = imags_original.clone();
-
-            let planner = PlannerDit64::with_mode(size, PlannerMode::Tune);
-
-            fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
-            fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Reverse, &planner);
-
-            for i in 0..size {
-                assert_float_closeness(reals[i], reals_original[i], 1e-10);
-                assert_float_closeness(imags[i], imags_original[i], 1e-10);
-            }
-        }
-    }
 }

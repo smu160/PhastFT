@@ -35,7 +35,6 @@ cargo bench --all-features                 # every target
 | `fftw_conserve` | (none)             | Same sizes through FFTW with `FFTW_MEASURE \| FFTW_CONSERVE_MEMORY` — the apples-to-apples comparison for PhastFT's low-memory design.                                                                    |
 | `realfft`       | (none)             | PhastFT R2C/C2R (`r2c_fft_*`, `c2r_fft_*`) vs. the `realfft` crate — forward + inverse, f32 + f64.                                                                                                        |
 | `planner`       | (none)             | Planner construction cost (`PlannerDit{32,64}::new` vs. RustFFT's `FftPlanner::plan_fft_forward`).                                                                                                        |
-| `planner_mode`  | (none)             | `PlannerMode::Heuristic` vs. `PlannerMode::Tune`. The two modes currently produce identical planners (the `_mode` argument is ignored by `with_mode`); the bench pins the API surface for the eventual `Tune` implementation. |
 | `interleave`    | `complex-nums`     | Internal SIMD interleave / deinterleave kernels.                                                                                                                                                          |
 | `bit_reversal`  | `bench-internals`  | Internal CO-BRAVO vs. BRAVO bit-reversal kernels.                                                                                                                                                         |
 

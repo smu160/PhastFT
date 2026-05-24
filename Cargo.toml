@@ -60,10 +60,6 @@ harness = false
 required-features = ["complex-nums"]
 
 [[bench]]
-name = "planner_mode"
-harness = false
-
-[[bench]]
 name = "bit_reversal"
 harness = false
 required-features = ["bench-internals"]

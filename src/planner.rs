@@ -13,22 +13,6 @@ pub enum Direction {
     Reverse = -1,
 }
 
-/// Controls how the planner selects algorithm variants.
-///
-/// The planner can choose between different internal strategies (e.g., whether to
-/// use the fused 32-point codelet). `Heuristic` uses a conservative static rule
-/// with zero planning overhead. `Tune` benchmarks both paths at plan time and
-/// picks whichever is faster, at the cost of additional planning time.
-#[derive(Copy, Clone, Debug, Default)]
-pub enum PlannerMode {
-    /// Use a conservative static heuristic. Zero overhead at plan time.
-    #[default]
-    Heuristic,
-    /// Benchmark both paths at plan time, pick whichever is faster.
-    /// Adds planning overhead proportional to FFT size.
-    Tune,
-}
-
 macro_rules! impl_planner_dit_for {
     ($struct_name:ident, $precision:ident, $fft_func:path) => {
         /// DIT-specific planner that pre-computes twiddles for all stages.
@@ -48,19 +32,14 @@ macro_rules! impl_planner_dit_for {
         impl $struct_name {
             /// Create a DIT planner for an FFT of size `num_points`.
             ///
-            /// Uses [`PlannerMode::Heuristic`] to decide algorithm variants.
-            /// For explicit control, use [`Self::with_mode`].
-            pub fn new(num_points: usize) -> Self {
-                Self::with_mode(num_points, PlannerMode::Heuristic)
-            }
-
-            /// Create a DIT planner with explicit control over algorithm selection.
+            /// Pre-computes the per-stage twiddle factors and detects the SIMD
+            /// support level once, so the planner can be reused across many
+            /// FFTs of the same size.
             ///
-            /// - [`PlannerMode::Heuristic`]: Zero-cost static rule. Conservative — may
-            ///   leave performance on the table on platforms with large L1i caches.
-            /// - [`PlannerMode::Tune`]: Benchmarks both paths at plan time. Use this
-            ///   when you can afford extra planning time (e.g., planner is reused).
-            pub fn with_mode(num_points: usize, _mode: PlannerMode) -> Self {
+            /// # Panics
+            ///
+            /// Panics if `num_points` is not a power of two.
+            pub fn new(num_points: usize) -> Self {
                 assert!(num_points > 0 && num_points.is_power_of_two());
 
                 let simd_level = fearless_simd::Level::new();
