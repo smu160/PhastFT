@@ -5,7 +5,7 @@
 
 /// Reverse is for running the Inverse Fast Fourier Transform (IFFT)
 /// Forward is for running the regular FFT
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     /// Leave the exponent term in the twiddle factor alone
     Forward = 1,
@@ -19,6 +19,7 @@ macro_rules! impl_planner_dit_for {
         ///
         /// The planner is direction-agnostic. Namely, the same instance can drive both forward and
         /// inverse transforms. Direction is supplied per-call to the `fft_*_dit*` functions.
+        #[derive(Clone)]
         pub struct $struct_name {
             /// Twiddles for each stage that needs them (stages with chunk_size > 64)
             /// Each element contains (twiddles_re, twiddles_im) for that stage
@@ -74,6 +75,14 @@ macro_rules! impl_planner_dit_for {
                     log_n,
                     simd_level,
                 }
+            }
+        }
+
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("fft_size", &(1usize << self.log_n))
+                    .finish_non_exhaustive()
             }
         }
     };
@@ -147,6 +156,7 @@ macro_rules! impl_planner_r2c_for {
         ///
         /// The planner is direction-agnostic. Namely, the same instance can drive both
         /// R2C and C2R transforms.
+        #[derive(Clone)]
         pub struct $struct_name {
             /// Inner DIT planner for the N/2 complex FFT
             pub(crate) dit_planner: $dit_planner,
@@ -175,6 +185,14 @@ macro_rules! impl_planner_r2c_for {
                     w_im,
                     n,
                 }
+            }
+        }
+
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("n", &self.n)
+                    .finish_non_exhaustive()
             }
         }
     };

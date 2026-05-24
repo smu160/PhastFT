@@ -424,4 +424,18 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn public_types_impl_standard_traits() {
+        assert_eq!(Direction::Forward, Direction::Forward);
+        assert_ne!(Direction::Forward, Direction::Reverse);
+        assert_eq!(format!("{:?}", Direction::Forward), "Forward");
+
+        let a = Options::guess_options(1 << 10);
+        assert_eq!(a, a.clone());
+
+        let planner = PlannerDit64::new(1 << 10);
+        let _ = format!("{planner:?}"); // terse Debug must not panic
+        let _ = planner.clone();
+    }
 }
