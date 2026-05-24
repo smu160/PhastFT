@@ -31,7 +31,12 @@ mod parallel;
 pub mod planner;
 
 pub use algorithms::dit::{fft_f32_dit_with_planner_and_opts, fft_f64_dit_with_planner_and_opts};
-pub use algorithms::r2c::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
+pub use algorithms::r2c::{
+    c2r_fft_f32, c2r_fft_f32_with_planner, c2r_fft_f32_with_planner_and_opts, c2r_fft_f64,
+    c2r_fft_f64_with_planner, c2r_fft_f64_with_planner_and_opts, r2c_fft_f32,
+    r2c_fft_f32_with_planner, r2c_fft_f32_with_planner_and_opts, r2c_fft_f64,
+    r2c_fft_f64_with_planner, r2c_fft_f64_with_planner_and_opts,
+};
 
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_fft_interleaved_for {

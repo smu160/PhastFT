@@ -12,7 +12,10 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use phastft::options::Options;
 use phastft::planner::{PlannerR2c32, PlannerR2c64};
-use phastft::{c2r_fft_f32, c2r_fft_f64, r2c_fft_f32, r2c_fft_f64};
+use phastft::{
+    c2r_fft_f32_with_planner_and_opts, c2r_fft_f64_with_planner_and_opts,
+    r2c_fft_f32_with_planner_and_opts, r2c_fft_f64_with_planner_and_opts,
+};
 use realfft::RealFftPlanner;
 
 mod common;
@@ -121,10 +124,34 @@ macro_rules! c2r_bench {
     };
 }
 
-r2c_bench!(r2c_f32, f32, PlannerR2c32, r2c_fft_f32, groups::R2C_F32);
-r2c_bench!(r2c_f64, f64, PlannerR2c64, r2c_fft_f64, groups::R2C_F64);
-c2r_bench!(c2r_f32, f32, PlannerR2c32, c2r_fft_f32, groups::C2R_F32);
-c2r_bench!(c2r_f64, f64, PlannerR2c64, c2r_fft_f64, groups::C2R_F64);
+r2c_bench!(
+    r2c_f32,
+    f32,
+    PlannerR2c32,
+    r2c_fft_f32_with_planner_and_opts,
+    groups::R2C_F32
+);
+r2c_bench!(
+    r2c_f64,
+    f64,
+    PlannerR2c64,
+    r2c_fft_f64_with_planner_and_opts,
+    groups::R2C_F64
+);
+c2r_bench!(
+    c2r_f32,
+    f32,
+    PlannerR2c32,
+    c2r_fft_f32_with_planner_and_opts,
+    groups::C2R_F32
+);
+c2r_bench!(
+    c2r_f64,
+    f64,
+    PlannerR2c64,
+    c2r_fft_f64_with_planner_and_opts,
+    groups::C2R_F64
+);
 
 criterion_group!(benches, r2c_f32, c2r_f32, r2c_f64, c2r_f64);
 criterion_main!(benches);

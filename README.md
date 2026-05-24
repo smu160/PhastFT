@@ -79,37 +79,29 @@ running a full complex FFT with zeroed imaginary components. The output is the
 *compact* `N/2 + 1` complex spectrum. The remaining `N/2 - 1` bins can be
 derived via the conjugate symmetry `X[N - k] = conj(X[k])`.
 
-The same `PlannerR2c64` drives both directions. R2C is in-place (output
-buffers double as scratch for the inner half-length complex FFT). C2R takes
-caller-provided scratch buffers (`N/2` reals each for re and im); allocation
-is the caller's choice.
+The bare `r2c_fft_f64` / `c2r_fft_f64` build a planner (and, for C2R, scratch
+buffers) for you. R2C is in-place — the output buffers double as scratch for the
+inner half-length complex FFT.
 
 ```rust
-use phastft::{c2r_fft_f64, options::Options, planner::PlannerR2c64, r2c_fft_f64};
+use phastft::{c2r_fft_f64, r2c_fft_f64};
 
 let n = 1 << 16;
 let signal: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
 
-let planner = PlannerR2c64::new(n);
-let opts = Options::guess_options(n / 2);
-
+// Forward real FFT — the compact N/2 + 1 spectrum.
 let mut spec_re = vec![0.0; n / 2 + 1];
 let mut spec_im = vec![0.0; n / 2 + 1];
-r2c_fft_f64(&signal, &mut spec_re, &mut spec_im, &planner, &opts);
+r2c_fft_f64(&signal, &mut spec_re, &mut spec_im);
 
-let mut scratch_re = vec![0.0; n / 2];
-let mut scratch_im = vec![0.0; n / 2];
+// Inverse — recover the N real samples.
 let mut recovered = vec![0.0; n];
-c2r_fft_f64(
-    &spec_re,
-    &spec_im,
-    &mut recovered,
-    &planner,
-    &opts,
-    &mut scratch_re,
-    &mut scratch_im,
-);
+c2r_fft_f64(&spec_re, &spec_im, &mut recovered);
 ```
+
+For repeated transforms of the same size, reuse a `PlannerR2c64` via
+`r2c_fft_f64_with_planner` / `c2r_fft_f64_with_planner`, or take full control of
+options and C2R scratch buffers with the `_with_planner_and_opts` tier.
 
 ### Python (coming soon)
 

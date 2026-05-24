@@ -505,7 +505,7 @@ fn simd_interleave_f32<S: Simd>(simd: S, z_re: &[f32], z_im: &[f32], output: &mu
 /// # Example
 ///
 /// ```
-/// use phastft::{options::Options, planner::PlannerR2c64, r2c_fft_f64};
+/// use phastft::{options::Options, planner::PlannerR2c64, r2c_fft_f64_with_planner_and_opts};
 ///
 /// let n = 16;
 /// let input: Vec<f64> = (1..=n).map(|x| x as f64).collect();
@@ -514,9 +514,9 @@ fn simd_interleave_f32<S: Simd>(simd: S, z_re: &[f32], z_im: &[f32], output: &mu
 ///
 /// let planner = PlannerR2c64::new(n);
 /// let opts = Options::guess_options(n / 2);
-/// r2c_fft_f64(&input, &mut out_re, &mut out_im, &planner, &opts);
+/// r2c_fft_f64_with_planner_and_opts(&input, &mut out_re, &mut out_im, &planner, &opts);
 /// ```
-pub fn r2c_fft_f64(
+pub fn r2c_fft_f64_with_planner_and_opts(
     input_re: &[f64],
     output_re: &mut [f64],
     output_im: &mut [f64],
@@ -579,9 +579,9 @@ pub fn r2c_fft_f64(
 
 /// Performs a real-valued FFT on `f32` input data.
 ///
-/// Single-precision variant of [`r2c_fft_f64`]; see that function for the
+/// Single-precision variant of [`r2c_fft_f64_with_planner_and_opts`]; see that function for the
 /// layout contract and example.
-pub fn r2c_fft_f32(
+pub fn r2c_fft_f32_with_planner_and_opts(
     input_re: &[f32],
     output_re: &mut [f32],
     output_im: &mut [f32],
@@ -645,7 +645,7 @@ pub fn r2c_fft_f32(
 
 /// Performs the inverse real-valued FFT on `f64` data.
 ///
-/// Given the `N/2 + 1` independent complex bins produced by [`r2c_fft_f64`]
+/// Given the `N/2 + 1` independent complex bins produced by [`r2c_fft_f64_with_planner_and_opts`]
 /// (conjugate-symmetric redundancy stripped), recovers the original `N` real
 /// samples. Performs zero allocations: `scratch_re` and `scratch_im` must
 /// each be length `N / 2`; their contents on entry are ignored and on exit
@@ -660,7 +660,10 @@ pub fn r2c_fft_f32(
 /// # Example
 ///
 /// ```
-/// use phastft::{c2r_fft_f64, options::Options, planner::PlannerR2c64, r2c_fft_f64};
+/// use phastft::{
+///     c2r_fft_f64_with_planner_and_opts, options::Options, planner::PlannerR2c64,
+///     r2c_fft_f64_with_planner_and_opts,
+/// };
 ///
 /// let n = 16;
 /// let signal: Vec<f64> = (1..=n).map(|x| x as f64).collect();
@@ -670,12 +673,12 @@ pub fn r2c_fft_f32(
 ///
 /// let mut spec_re = vec![0.0; n / 2 + 1];
 /// let mut spec_im = vec![0.0; n / 2 + 1];
-/// r2c_fft_f64(&signal, &mut spec_re, &mut spec_im, &planner, &opts);
+/// r2c_fft_f64_with_planner_and_opts(&signal, &mut spec_re, &mut spec_im, &planner, &opts);
 ///
 /// let mut scratch_re = vec![0.0; n / 2];
 /// let mut scratch_im = vec![0.0; n / 2];
 /// let mut recovered = vec![0.0; n];
-/// c2r_fft_f64(
+/// c2r_fft_f64_with_planner_and_opts(
 ///     &spec_re,
 ///     &spec_im,
 ///     &mut recovered,
@@ -685,7 +688,7 @@ pub fn r2c_fft_f32(
 ///     &mut scratch_im,
 /// );
 /// ```
-pub fn c2r_fft_f64(
+pub fn c2r_fft_f64_with_planner_and_opts(
     input_re: &[f64],
     input_im: &[f64],
     output: &mut [f64],
@@ -749,8 +752,8 @@ pub fn c2r_fft_f64(
 
 /// Performs the inverse real-valued FFT on `f32` data.
 ///
-/// Single-precision variant of [`c2r_fft_f64`]; see that function for details.
-pub fn c2r_fft_f32(
+/// Single-precision variant of [`c2r_fft_f64_with_planner_and_opts`]; see that function for details.
+pub fn c2r_fft_f32_with_planner_and_opts(
     input_re: &[f32],
     input_im: &[f32],
     output: &mut [f32],
@@ -812,6 +815,188 @@ pub fn c2r_fft_f32(
     );
 }
 
+// ---------------------------------------------------------------------------
+// Convenience tiers: bare (auto planner) and `_with_planner` (auto options),
+// mirroring the three-tier shape of the complex FFT API.
+// ---------------------------------------------------------------------------
+
+/// Real-valued FFT on `f64` input — convenience wrapper that builds a planner
+/// automatically.
+///
+/// For repeated transforms of the same size, reuse a planner via
+/// [`r2c_fft_f64_with_planner`]. See [`r2c_fft_f64_with_planner_and_opts`] for
+/// the output-layout contract.
+///
+/// # Panics
+///
+/// Panics if `input_re.len()` is not a power of two `>= 4`, or if `output_re` /
+/// `output_im` are not length `input_re.len() / 2 + 1`.
+///
+/// # Example
+///
+/// ```
+/// use phastft::r2c_fft_f64;
+///
+/// let n = 16;
+/// let input: Vec<f64> = (1..=n).map(|x| x as f64).collect();
+/// let mut out_re = vec![0.0; n / 2 + 1];
+/// let mut out_im = vec![0.0; n / 2 + 1];
+/// r2c_fft_f64(&input, &mut out_re, &mut out_im);
+/// ```
+pub fn r2c_fft_f64(input_re: &[f64], output_re: &mut [f64], output_im: &mut [f64]) {
+    let planner = PlannerR2c64::new(input_re.len());
+    r2c_fft_f64_with_planner(input_re, output_re, output_im, &planner);
+}
+
+/// Real-valued FFT on `f64` input using a pre-built planner; options are
+/// guessed automatically.
+///
+/// See [`r2c_fft_f64_with_planner_and_opts`] for the output-layout contract.
+///
+/// # Panics
+///
+/// Panics if the buffer lengths do not match the planner size.
+pub fn r2c_fft_f64_with_planner(
+    input_re: &[f64],
+    output_re: &mut [f64],
+    output_im: &mut [f64],
+    planner: &PlannerR2c64,
+) {
+    let opts = Options::guess_options(planner.n / 2);
+    r2c_fft_f64_with_planner_and_opts(input_re, output_re, output_im, planner, &opts);
+}
+
+/// Inverse real-valued FFT on `f64` data — convenience wrapper that builds a
+/// planner and allocates scratch automatically.
+///
+/// For repeated transforms, reuse a planner and scratch via
+/// [`c2r_fft_f64_with_planner_and_opts`]. See it for the input-layout contract.
+///
+/// # Panics
+///
+/// Panics if `output.len()` is not a power of two `>= 4`, or if `input_re` /
+/// `input_im` are not length `output.len() / 2 + 1`.
+///
+/// # Example
+///
+/// ```
+/// use phastft::{c2r_fft_f64, r2c_fft_f64};
+///
+/// let n = 16;
+/// let signal: Vec<f64> = (1..=n).map(|x| x as f64).collect();
+///
+/// let mut spec_re = vec![0.0; n / 2 + 1];
+/// let mut spec_im = vec![0.0; n / 2 + 1];
+/// r2c_fft_f64(&signal, &mut spec_re, &mut spec_im);
+///
+/// let mut recovered = vec![0.0; n];
+/// c2r_fft_f64(&spec_re, &spec_im, &mut recovered);
+/// ```
+pub fn c2r_fft_f64(input_re: &[f64], input_im: &[f64], output: &mut [f64]) {
+    let planner = PlannerR2c64::new(output.len());
+    c2r_fft_f64_with_planner(input_re, input_im, output, &planner);
+}
+
+/// Inverse real-valued FFT on `f64` data using a pre-built planner; options are
+/// guessed and scratch is allocated automatically.
+///
+/// # Panics
+///
+/// Panics if the buffer lengths do not match the planner size.
+pub fn c2r_fft_f64_with_planner(
+    input_re: &[f64],
+    input_im: &[f64],
+    output: &mut [f64],
+    planner: &PlannerR2c64,
+) {
+    let opts = Options::guess_options(planner.n / 2);
+    let mut scratch_re = vec![0.0; planner.n / 2];
+    let mut scratch_im = vec![0.0; planner.n / 2];
+    c2r_fft_f64_with_planner_and_opts(
+        input_re,
+        input_im,
+        output,
+        planner,
+        &opts,
+        &mut scratch_re,
+        &mut scratch_im,
+    );
+}
+
+/// Real-valued FFT on `f32` input — convenience wrapper that builds a planner
+/// automatically.
+///
+/// Single-precision variant of [`r2c_fft_f64`]. See
+/// [`r2c_fft_f32_with_planner_and_opts`] for the output-layout contract.
+///
+/// # Panics
+///
+/// Panics if `input_re.len()` is not a power of two `>= 4`, or if `output_re` /
+/// `output_im` are not length `input_re.len() / 2 + 1`.
+pub fn r2c_fft_f32(input_re: &[f32], output_re: &mut [f32], output_im: &mut [f32]) {
+    let planner = PlannerR2c32::new(input_re.len());
+    r2c_fft_f32_with_planner(input_re, output_re, output_im, &planner);
+}
+
+/// Real-valued FFT on `f32` input using a pre-built planner; options are
+/// guessed automatically.
+///
+/// See [`r2c_fft_f32_with_planner_and_opts`] for the output-layout contract.
+///
+/// # Panics
+///
+/// Panics if the buffer lengths do not match the planner size.
+pub fn r2c_fft_f32_with_planner(
+    input_re: &[f32],
+    output_re: &mut [f32],
+    output_im: &mut [f32],
+    planner: &PlannerR2c32,
+) {
+    let opts = Options::guess_options(planner.n / 2);
+    r2c_fft_f32_with_planner_and_opts(input_re, output_re, output_im, planner, &opts);
+}
+
+/// Inverse real-valued FFT on `f32` data — convenience wrapper that builds a
+/// planner and allocates scratch automatically.
+///
+/// Single-precision variant of [`c2r_fft_f64`]. See
+/// [`c2r_fft_f32_with_planner_and_opts`] for the input-layout contract.
+///
+/// # Panics
+///
+/// Panics if `output.len()` is not a power of two `>= 4`, or if `input_re` /
+/// `input_im` are not length `output.len() / 2 + 1`.
+pub fn c2r_fft_f32(input_re: &[f32], input_im: &[f32], output: &mut [f32]) {
+    let planner = PlannerR2c32::new(output.len());
+    c2r_fft_f32_with_planner(input_re, input_im, output, &planner);
+}
+
+/// Inverse real-valued FFT on `f32` data using a pre-built planner; options are
+/// guessed and scratch is allocated automatically.
+///
+/// # Panics
+///
+/// Panics if the buffer lengths do not match the planner size.
+pub fn c2r_fft_f32_with_planner(
+    input_re: &[f32],
+    input_im: &[f32],
+    output: &mut [f32],
+    planner: &PlannerR2c32,
+) {
+    let opts = Options::guess_options(planner.n / 2);
+    let mut scratch_re = vec![0.0f32; planner.n / 2];
+    let mut scratch_im = vec![0.0f32; planner.n / 2];
+    c2r_fft_f32_with_planner_and_opts(
+        input_re,
+        input_im,
+        output,
+        planner,
+        &opts,
+        &mut scratch_re,
+        &mut scratch_im,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use utilities::{assert_float_closeness, gen_random_signal_f32, gen_random_signal_f64};
@@ -834,13 +1019,13 @@ mod tests {
     fn run_r2c_f64(input: &[f64], out_re: &mut [f64], out_im: &mut [f64]) {
         let planner = PlannerR2c64::new(input.len());
         let opts = Options::guess_options(input.len() / 2);
-        r2c_fft_f64(input, out_re, out_im, &planner, &opts);
+        r2c_fft_f64_with_planner_and_opts(input, out_re, out_im, &planner, &opts);
     }
 
     fn run_r2c_f32(input: &[f32], out_re: &mut [f32], out_im: &mut [f32]) {
         let planner = PlannerR2c32::new(input.len());
         let opts = Options::guess_options(input.len() / 2);
-        r2c_fft_f32(input, out_re, out_im, &planner, &opts);
+        r2c_fft_f32_with_planner_and_opts(input, out_re, out_im, &planner, &opts);
     }
 
     fn run_c2r_f64(input_re: &[f64], input_im: &[f64], output: &mut [f64]) {
@@ -849,7 +1034,7 @@ mod tests {
         let opts = Options::guess_options(n / 2);
         let mut scratch_re = vec![0.0; n / 2];
         let mut scratch_im = vec![0.0; n / 2];
-        c2r_fft_f64(
+        c2r_fft_f64_with_planner_and_opts(
             input_re,
             input_im,
             output,
@@ -866,7 +1051,7 @@ mod tests {
         let opts = Options::guess_options(n / 2);
         let mut scratch_re = vec![0.0f32; n / 2];
         let mut scratch_im = vec![0.0f32; n / 2];
-        c2r_fft_f32(
+        c2r_fft_f32_with_planner_and_opts(
             input_re,
             input_im,
             output,
@@ -875,6 +1060,118 @@ mod tests {
             &mut scratch_re,
             &mut scratch_im,
         );
+    }
+
+    // The convenience tiers are pure delegations to identical inner calls, so
+    // their results are bit-identical to the full tier — exact assert_eq! holds.
+    #[test]
+    fn r2c_tiers_agree_f64() {
+        let n = 256;
+        let input: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+
+        let planner = PlannerR2c64::new(n);
+        let opts = Options::guess_options(n / 2);
+        let mut ref_re = vec![0.0; n / 2 + 1];
+        let mut ref_im = vec![0.0; n / 2 + 1];
+        r2c_fft_f64_with_planner_and_opts(&input, &mut ref_re, &mut ref_im, &planner, &opts);
+
+        let mut bare_re = vec![0.0; n / 2 + 1];
+        let mut bare_im = vec![0.0; n / 2 + 1];
+        r2c_fft_f64(&input, &mut bare_re, &mut bare_im);
+        assert_eq!((bare_re, bare_im), (ref_re.clone(), ref_im.clone()));
+
+        let mut wp_re = vec![0.0; n / 2 + 1];
+        let mut wp_im = vec![0.0; n / 2 + 1];
+        r2c_fft_f64_with_planner(&input, &mut wp_re, &mut wp_im, &planner);
+        assert_eq!((wp_re, wp_im), (ref_re, ref_im));
+    }
+
+    #[test]
+    fn c2r_tiers_agree_f64() {
+        let n = 256;
+        let half = n / 2;
+        let input: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+        let mut spec_re = vec![0.0; half + 1];
+        let mut spec_im = vec![0.0; half + 1];
+        r2c_fft_f64(&input, &mut spec_re, &mut spec_im);
+
+        let planner = PlannerR2c64::new(n);
+        let opts = Options::guess_options(half);
+        let mut scratch_re = vec![0.0; half];
+        let mut scratch_im = vec![0.0; half];
+        let mut ref_out = vec![0.0; n];
+        c2r_fft_f64_with_planner_and_opts(
+            &spec_re,
+            &spec_im,
+            &mut ref_out,
+            &planner,
+            &opts,
+            &mut scratch_re,
+            &mut scratch_im,
+        );
+
+        let mut bare_out = vec![0.0; n];
+        c2r_fft_f64(&spec_re, &spec_im, &mut bare_out);
+        assert_eq!(bare_out, ref_out);
+
+        let mut wp_out = vec![0.0; n];
+        c2r_fft_f64_with_planner(&spec_re, &spec_im, &mut wp_out, &planner);
+        assert_eq!(wp_out, ref_out);
+    }
+
+    #[test]
+    fn r2c_tiers_agree_f32() {
+        let n = 256;
+        let input: Vec<f32> = (1..=n).map(|i| i as f32).collect();
+
+        let planner = PlannerR2c32::new(n);
+        let opts = Options::guess_options(n / 2);
+        let mut ref_re = vec![0.0f32; n / 2 + 1];
+        let mut ref_im = vec![0.0f32; n / 2 + 1];
+        r2c_fft_f32_with_planner_and_opts(&input, &mut ref_re, &mut ref_im, &planner, &opts);
+
+        let mut bare_re = vec![0.0f32; n / 2 + 1];
+        let mut bare_im = vec![0.0f32; n / 2 + 1];
+        r2c_fft_f32(&input, &mut bare_re, &mut bare_im);
+        assert_eq!((bare_re, bare_im), (ref_re.clone(), ref_im.clone()));
+
+        let mut wp_re = vec![0.0f32; n / 2 + 1];
+        let mut wp_im = vec![0.0f32; n / 2 + 1];
+        r2c_fft_f32_with_planner(&input, &mut wp_re, &mut wp_im, &planner);
+        assert_eq!((wp_re, wp_im), (ref_re, ref_im));
+    }
+
+    #[test]
+    fn c2r_tiers_agree_f32() {
+        let n = 256;
+        let half = n / 2;
+        let input: Vec<f32> = (1..=n).map(|i| i as f32).collect();
+        let mut spec_re = vec![0.0f32; half + 1];
+        let mut spec_im = vec![0.0f32; half + 1];
+        r2c_fft_f32(&input, &mut spec_re, &mut spec_im);
+
+        let planner = PlannerR2c32::new(n);
+        let opts = Options::guess_options(half);
+        let mut scratch_re = vec![0.0f32; half];
+        let mut scratch_im = vec![0.0f32; half];
+        let mut ref_out = vec![0.0f32; n];
+        c2r_fft_f32_with_planner_and_opts(
+            &spec_re,
+            &spec_im,
+            &mut ref_out,
+            &planner,
+            &opts,
+            &mut scratch_re,
+            &mut scratch_im,
+        );
+
+        let mut bare_out = vec![0.0f32; n];
+        c2r_fft_f32(&spec_re, &spec_im, &mut bare_out);
+        assert_eq!(bare_out, ref_out);
+
+        let mut wp_out = vec![0.0f32; n];
+        c2r_fft_f32_with_planner(&spec_re, &spec_im, &mut wp_out, &planner);
+        assert_eq!(wp_out, ref_out);
     }
 
     #[test]
@@ -958,10 +1255,10 @@ mod tests {
 
             let mut spec_re = vec![0.0; half + 1];
             let mut spec_im = vec![0.0; half + 1];
-            r2c_fft_f64(&input, &mut spec_re, &mut spec_im, &planner, &opts);
+            r2c_fft_f64_with_planner_and_opts(&input, &mut spec_re, &mut spec_im, &planner, &opts);
 
             let mut reused = vec![0.0; n];
-            c2r_fft_f64(
+            c2r_fft_f64_with_planner_and_opts(
                 &spec_re,
                 &spec_im,
                 &mut reused,
@@ -1226,7 +1523,7 @@ mod tests {
         let input = vec![0.0f64; 32];
         let mut out_re = vec![0.0f64; 17];
         let mut out_im = vec![0.0f64; 17];
-        r2c_fft_f64(&input, &mut out_re, &mut out_im, &planner, &opts);
+        r2c_fft_f64_with_planner_and_opts(&input, &mut out_re, &mut out_im, &planner, &opts);
     }
 
     #[test]
@@ -1237,7 +1534,7 @@ mod tests {
         let input = vec![0.0f64; 16];
         let mut out_re = vec![0.0f64; 16];
         let mut out_im = vec![0.0f64; 9];
-        r2c_fft_f64(&input, &mut out_re, &mut out_im, &planner, &opts);
+        r2c_fft_f64_with_planner_and_opts(&input, &mut out_re, &mut out_im, &planner, &opts);
     }
 
     #[test]
@@ -1248,7 +1545,7 @@ mod tests {
         let input = vec![0.0f64; 16];
         let mut out_re = vec![0.0f64; 9];
         let mut out_im = vec![0.0f64; 8];
-        r2c_fft_f64(&input, &mut out_re, &mut out_im, &planner, &opts);
+        r2c_fft_f64_with_planner_and_opts(&input, &mut out_re, &mut out_im, &planner, &opts);
     }
 
     #[test]
@@ -1259,7 +1556,7 @@ mod tests {
         let input = vec![0.0f32; 16];
         let mut out_re = vec![0.0f32; 16];
         let mut out_im = vec![0.0f32; 9];
-        r2c_fft_f32(&input, &mut out_re, &mut out_im, &planner, &opts);
+        r2c_fft_f32_with_planner_and_opts(&input, &mut out_re, &mut out_im, &planner, &opts);
     }
 
     #[test]
@@ -1272,7 +1569,7 @@ mod tests {
         let mut out = vec![0.0f64; 32];
         let mut scratch_re = vec![0.0f64; 8];
         let mut scratch_im = vec![0.0f64; 8];
-        c2r_fft_f64(
+        c2r_fft_f64_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
@@ -1293,7 +1590,7 @@ mod tests {
         let mut out = vec![0.0f64; 16];
         let mut scratch_re = vec![0.0f64; 8];
         let mut scratch_im = vec![0.0f64; 8];
-        c2r_fft_f64(
+        c2r_fft_f64_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
@@ -1314,7 +1611,7 @@ mod tests {
         let mut out = vec![0.0f64; 16];
         let mut scratch_re = vec![0.0f64; 8];
         let mut scratch_im = vec![0.0f64; 8];
-        c2r_fft_f64(
+        c2r_fft_f64_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
@@ -1335,7 +1632,7 @@ mod tests {
         let mut out = vec![0.0f32; 16];
         let mut scratch_re = vec![0.0f32; 8];
         let mut scratch_im = vec![0.0f32; 8];
-        c2r_fft_f32(
+        c2r_fft_f32_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
@@ -1356,7 +1653,7 @@ mod tests {
         let mut out = vec![0.0f64; 16];
         let mut scratch_re = vec![0.0f64; 4];
         let mut scratch_im = vec![0.0f64; 8];
-        c2r_fft_f64(
+        c2r_fft_f64_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
@@ -1377,7 +1674,7 @@ mod tests {
         let mut out = vec![0.0f32; 16];
         let mut scratch_re = vec![0.0f32; 8];
         let mut scratch_im = vec![0.0f32; 4];
-        c2r_fft_f32(
+        c2r_fft_f32_with_planner_and_opts(
             &in_re,
             &in_im,
             &mut out,
