@@ -55,7 +55,7 @@ fft_f64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
 When the `complex-nums` feature is enabled, you can also use the interleaved
 format with the `num_complex::Complex` type:
 
-```rust
+```rust,ignore
 use phastft::{
     planner::Direction,
     fft_f64_dit_interleaved
