@@ -335,6 +335,10 @@ fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
 ///
 /// Single-precision version of the DIT FFT algorithm.
 /// See [`fft_f64_dit_with_planner_and_opts`] for `f64` version.
+///
+/// # Panics
+///
+/// Panics if input length is not a power of 2 or if real and imaginary arrays have different lengths
 pub fn fft_f32_dit_with_planner_and_opts(
     reals: &mut [f32],
     imags: &mut [f32],

@@ -140,7 +140,14 @@ impl_fft_interleaved!(
     PlannerDit64
 );
 
-/// FFT using Decimation-In-Time (DIT) algorithm for f64 with pre-computed planner
+/// FFT using the Decimation-In-Time (DIT) algorithm for `f64`, reusing a
+/// pre-computed planner. Options are guessed from the input size.
+///
+/// For full control over [`Options`], use [`fft_f64_dit_with_planner_and_opts`].
+///
+/// # Panics
+///
+/// Panics if the input length is not a power of two, or does not match the planner size.
 pub fn fft_f64_dit_with_planner(
     reals: &mut [f64],
     imags: &mut [f64],
@@ -183,7 +190,14 @@ pub fn fft_f64_dit(reals: &mut [f64], imags: &mut [f64], direction: Direction) {
     fft_f64_dit_with_planner(reals, imags, direction, &planner);
 }
 
-/// FFT using Decimation-In-Time (DIT) algorithm for f32 with pre-computed planner
+/// FFT using the Decimation-In-Time (DIT) algorithm for `f32`, reusing a
+/// pre-computed planner. Options are guessed from the input size.
+///
+/// For full control over [`Options`], use [`fft_f32_dit_with_planner_and_opts`].
+///
+/// # Panics
+///
+/// Panics if the input length is not a power of two, or does not match the planner size.
 pub fn fft_f32_dit_with_planner(
     reals: &mut [f32],
     imags: &mut [f32],

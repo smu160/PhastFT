@@ -25,10 +25,17 @@
 //!
 //! # Allocation
 //!
+//! The zero-allocation guarantees below describe the top
+//! [`r2c_fft_f64_with_planner_and_opts`] / [`c2r_fft_f64_with_planner_and_opts`]
+//! tier, where the caller supplies the planner, options, and (for C2R) scratch.
+//! The convenience tiers ([`r2c_fft_f64`] / [`c2r_fft_f64`] and the
+//! `_with_planner` forms) build those automatically and therefore allocate.
+//!
 //! - **R2C** is in-place: the output buffers double as scratch for the inner
 //!   half-length complex FFT, so the hot path performs zero allocations.
-//! - **C2R** requires `N/2` reals of scratch per array (re + im). The caller
-//!   provides reusable scratch buffers, so the hot path allocates nothing.
+//! - **C2R** requires `N/2` reals of scratch per array (re + im). At the top
+//!   tier the caller provides reusable scratch buffers, so the hot path
+//!   allocates nothing.
 //!
 //! # References
 //!
@@ -497,6 +504,9 @@ fn simd_interleave_f32<S: Simd>(simd: S, z_re: &[f32], z_im: &[f32], output: &mu
 /// In-place: the output buffers double as scratch for the inner half-length
 /// complex FFT, so this function performs zero allocations.
 ///
+/// The `opts` argument governs the internal half-length (`N/2`) complex FFT, so
+/// a hand-built `Options` must be sized for `N / 2`, not `N`.
+///
 /// # Panics
 ///
 /// Panics if `input_re.len()` does not match the planner size, or if
@@ -581,6 +591,9 @@ pub fn r2c_fft_f64_with_planner_and_opts(
 ///
 /// Single-precision variant of [`r2c_fft_f64_with_planner_and_opts`]; see that function for the
 /// layout contract and example.
+///
+/// The `opts` argument governs the internal half-length (`N/2`) complex FFT, so
+/// a hand-built `Options` must be sized for `N / 2`, not `N`.
 pub fn r2c_fft_f32_with_planner_and_opts(
     input_re: &[f32],
     output_re: &mut [f32],
@@ -650,6 +663,9 @@ pub fn r2c_fft_f32_with_planner_and_opts(
 /// samples. Performs zero allocations: `scratch_re` and `scratch_im` must
 /// each be length `N / 2`; their contents on entry are ignored and on exit
 /// are unspecified (callers may reuse the buffers across calls).
+///
+/// The `opts` argument governs the internal half-length (`N/2`) complex FFT, so
+/// a hand-built `Options` must be sized for `N / 2`, not `N`.
 ///
 /// # Panics
 ///
@@ -753,6 +769,9 @@ pub fn c2r_fft_f64_with_planner_and_opts(
 /// Performs the inverse real-valued FFT on `f32` data.
 ///
 /// Single-precision variant of [`c2r_fft_f64_with_planner_and_opts`]; see that function for details.
+///
+/// The `opts` argument governs the internal half-length (`N/2`) complex FFT, so
+/// a hand-built `Options` must be sized for `N / 2`, not `N`.
 pub fn c2r_fft_f32_with_planner_and_opts(
     input_re: &[f32],
     input_im: &[f32],

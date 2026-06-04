@@ -103,8 +103,6 @@ For repeated transforms of the same size, reuse a `PlannerR2c64` via
 `r2c_fft_f64_with_planner` / `c2r_fft_f64_with_planner`, or take full control of
 options and C2R scratch buffers with the `_with_planner_and_opts` tier.
 
-### Python (coming soon)
-
 ### Normalization
 
 `phastft` only scales the output of the inverse FFT. Namely, running IFFT(x)
