@@ -32,12 +32,12 @@ Treat this as a fresh start — nearly every entry point was renamed.
 - Real-valued FFT — `r2c_fft_f32` / `r2c_fft_f64` and the inverse `c2r_fft_f32`
   / `c2r_fft_f64`, producing/consuming the compact `N/2 + 1` spectrum; roughly
   2x faster than a zero-imaginary complex FFT
-  ([#105](https://github.com/QuState/PhastFT/pull/105)).
+  ([#105](https://github.com/smu160/PhastFT/pull/105)).
 - Optional multi-threading via the `parallel` feature (Rayon): threaded bit
   reversal and a cache-oblivious parallel recursive FFT.
 - `Options::smallest_parallel_chunk_size` to tune the parallel split point.
 - Fused multi-stage codelets — FFT-16 for `f64`, FFT-32 for `f32`
-  ([#101](https://github.com/QuState/PhastFT/pull/101)).
+  ([#101](https://github.com/smu160/PhastFT/pull/101)).
 - `Debug` / `PartialEq` / `Eq` / `Hash` implementations across the public types.
 
 ### Changed
@@ -47,7 +47,7 @@ Treat this as a fresh start — nearly every entry point was renamed.
   **stable** Rust — the nightly requirement is gone.
 - The FFT core is now a recursive, cache-blocked decimation-in-time algorithm;
   CO-BRAVO provides cache-optimal SIMD bit reversal
-  ([#106](https://github.com/QuState/PhastFT/pull/106)).
+  ([#106](https://github.com/smu160/PhastFT/pull/106)).
 
 ### Removed
 

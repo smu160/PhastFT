@@ -24,7 +24,7 @@ cargo test --all-features
 
 6. Commit your changes and push them to GitHub
 
-7. Submit a pull request (PR) through the [GitHub website](https://github.com/QuState/phastft/pulls).
+7. Submit a pull request (PR) through the [GitHub website](https://github.com/smu160/PhastFT/pulls).
 
 ## Pull Request Guidelines
 

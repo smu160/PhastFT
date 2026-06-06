@@ -1,5 +1,5 @@
-[![Build](https://github.com/QuState/PhastFT/actions/workflows/rust.yml/badge.svg)](https://github.com/QuState/PhastFT/actions/workflows/rust.yml)
-[![codecov](https://codecov.io/gh/QuState/PhastFT/graph/badge.svg?token=IM86XMURHN)](https://codecov.io/gh/QuState/PhastFT)
+[![Build](https://github.com/smu160/PhastFT/actions/workflows/rust.yml/badge.svg)](https://github.com/smu160/PhastFT/actions/workflows/rust.yml)
+[![codecov](https://codecov.io/gh/smu160/PhastFT/graph/badge.svg?token=IM86XMURHN)](https://codecov.io/gh/smu160/PhastFT)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![](https://img.shields.io/crates/v/phastft)](https://crates.io/crates/phastft)
 [![](https://docs.rs/phastft/badge.svg)](https://docs.rs/phastft/)
@@ -128,16 +128,16 @@ don't hesitate to create an issue.
 
 PhastFT is benchmarked against several other FFT libraries. Scripts and
 instructions to reproduce benchmark results and
-plots are available [here](https://github.com/QuState/PhastFT/tree/main/benches#readme).
+plots are available [here](https://github.com/smu160/PhastFT/tree/main/benches#readme).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple
