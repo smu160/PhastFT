@@ -32,9 +32,6 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 - Even more work on performance
 
 ## Quickstart
-
-### Rust
-
 ```rust
 use phastft::{fft_f64_dit, fft_f64_dit_with_planner, planner::{Direction, PlannerDit64}};
 
@@ -144,7 +141,7 @@ README](https://github.com/smu160/PhastFT/tree/main/benches#readme).
 
 <p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple
     M2 (4 P + 4 E cores; 24 GB memory; macOS
-    26.4.1.</em></p>
+    26.4.1)</em></p>
 
 ## How is it so fast?
 
