@@ -35,7 +35,6 @@ cargo bench --all-features                 # every target
 | `fftw_conserve` | (none)             | Same sizes through FFTW with `FFTW_MEASURE \| FFTW_CONSERVE_MEMORY` — the apples-to-apples comparison for PhastFT's low-memory design.                                                                    |
 | `realfft`       | (none)             | PhastFT R2C/C2R (`r2c_fft_*`, `c2r_fft_*`) vs. the `realfft` crate — forward + inverse, f32 + f64.                                                                                                        |
 | `planner`       | (none)             | Planner construction cost (`PlannerDit{32,64}::new` vs. RustFFT's `FftPlanner::plan_fft_forward`).                                                                                                        |
-| `planner_mode`  | (none)             | `PlannerMode::Heuristic` vs. `PlannerMode::Tune`. The two modes currently produce identical planners (the `_mode` argument is ignored by `with_mode`); the bench pins the API surface for the eventual `Tune` implementation. |
 | `interleave`    | `complex-nums`     | Internal SIMD interleave / deinterleave kernels.                                                                                                                                                          |
 | `bit_reversal`  | `bench-internals`  | Internal CO-BRAVO vs. BRAVO bit-reversal kernels.                                                                                                                                                         |
 
@@ -87,6 +86,33 @@ that aren't in the registry get a loud warning and are skipped — better
 to surface the gap than to silently normalize against a guessed
 baseline. PEP 723 inline metadata means `uv run` fetches matplotlib /
 numpy / pandas on demand — no venv required.
+
+### Single-threaded overlay results
+
+These are the single-threaded cross-library overlays: PhastFT runs on one
+thread (without the `parallel` feature) against RustFFT and FFTW3. The forward
+transforms' multi-threaded counterparts headline the [root
+README](../README.md#benchmarks).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N — single-threaded" alt="C2C Forward (f32), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N — single-threaded" alt="C2C Forward (f32), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N — single-threaded" alt="C2C Forward (f64), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N — single-threaded" alt="C2C Forward (f64), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f32_6_14.svg" width="400" title="C2C Inverse (f32), small-N — single-threaded" alt="C2C Inverse (f32), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f32_15_24.svg" width="400" title="C2C Inverse (f32), large-N — single-threaded" alt="C2C Inverse (f32), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f64_6_14.svg" width="400" title="C2C Inverse (f64), small-N — single-threaded" alt="C2C Inverse (f64), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f64_15_24.svg" width="400" title="C2C Inverse (f64), large-N — single-threaded" alt="C2C Inverse (f64), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
 
 ### Group naming convention
 

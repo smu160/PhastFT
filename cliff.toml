@@ -35,7 +35,7 @@ render_always = true
 # An array of regex based postprocessors to modify the changelog.
 postprocessors = [
     # Replace the placeholder <REPO> with the GitHub URL.
-    { pattern = '<REPO>', replace = "https://github.com/QuState/PhastFT" },
+    { pattern = '<REPO>', replace = "https://github.com/smu160/PhastFT" },
 ]
 
 [git]

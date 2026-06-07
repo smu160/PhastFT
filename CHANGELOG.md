@@ -2,260 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.0-rc.1] - 2026-05-03
+## [0.4.0] - 2026-06-04
 
-### Features
+The largest release since the initial publish: a SIMD backend with runtime CPU
+dispatch, a real-valued FFT, optional multi-threading, and a unified public API.
+Treat this as a fresh start — nearly every entry point was renamed.
 
-- Add the rustfmt.toml config actual
-- Remove nightly requirement for portable SIMD
-- Add Rayon to the f32 codepath
-- Add a tunable for the smallest chunk size beyond which the input will not be split further
-- Add initial experimental BRAVO impl
-- Add DiT kernel wrappers to act as an inlining barrier, otherwise the entirety of DiT kernels ends up rolled up into one function on ARM and collapses under register pressure
-- Add precision configuration to our own benchmark example
-- Add precision configuration to benchmark scripts for rustfft and fftw
-- Add a benchmark for planner
-- Add interleaving/deinterleaving benchmark
-- Add `criterion` benchmarks for bit reversal comparison
-- Add real valued FFT/IFFT ([#105](https://github.com/QuState/PhastFT/pull/105))
+### Breaking Changes
 
-### Bug Fixes
+- The public API was renamed and unified. Every entry point now spells the
+  precision as the Rust float type and names the FFT algorithm explicitly:
+  - Complex FFT (split real/imag arrays): `fft_64` / `fft_32` are now
+    `fft_f64_dit` / `fft_f32_dit`. The full-control `fft_64_with_opts_and_plan`
+    / `fft_32_with_opts_and_plan` are now `fft_f64_dit_with_planner_and_opts` /
+    `fft_f32_dit_with_planner_and_opts`, and a middle
+    `fft_f{64,32}_dit_with_planner` tier was added.
+  - Interleaved `Complex` FFT (feature `complex-nums`): `fft_64_interleaved` /
+    `fft_32_interleaved` are now `fft_f64_dit_interleaved` /
+    `fft_f32_dit_interleaved` (plus `_with_planner` / `_with_planner_and_opts`
+    tiers).
+  - Planner types `Planner64` / `Planner32` are now `PlannerDit64` /
+    `PlannerDit32`, and are direction-agnostic and reusable — one instance
+    drives both forward and inverse transforms.
+- `Direction::Reverse` was renamed to `Direction::Inverse`.
+- The minimum supported Rust version is now declared (`rust-version = "1.88"`).
 
-- Bump utilities version # and bump deps
-- Add FMA to chunk 4 DIT kernel & fix organization
-- Typo
-- Remove dead code, fix py bindings, add missing docs
-- Remove nightly from profiling script
-- Fix build now that 'wide' renamed a bunch of its methods to align with portable_simd
-- Fix YAML syntax
-- Update GH Actions workflow to use stable rust
-- Fix module documentation not being a proper module doc comment
-- Ammend criterion benchmarks and bump criterion to v0.8.2
-- Throughput should consider reals and imags
-- Remove old C FFTW benches, improve methodology, and plots ([#117](https://github.com/QuState/PhastFT/pull/117))
+### Added
 
-### Other
+- Real-valued FFT — `r2c_fft_f32` / `r2c_fft_f64` and the inverse `c2r_fft_f32`
+  / `c2r_fft_f64`, producing/consuming the compact `N/2 + 1` spectrum; roughly
+  2x faster than a zero-imaginary complex FFT
+  ([#105](https://github.com/smu160/PhastFT/pull/105)).
+- Optional multi-threading via the `parallel` feature (Rayon): threaded bit
+  reversal and a cache-oblivious parallel recursive FFT.
+- `Options::smallest_parallel_chunk_size` to tune the parallel split point.
+- Fused multi-stage codelets — FFT-16 for `f64`, FFT-32 for `f32`
+  ([#101](https://github.com/smu160/PhastFT/pull/101)).
+- `Debug` / `PartialEq` / `Eq` / `Hash` implementations across the public types.
 
-- Placate clippy about floats and unused code
-- Adopt the same rustfmt config as rust
-- Require gfni target feature for the AVX-512 codepath
+### Changed
 
-Boosts some of the benchmarks by 50% on Zen 4.
+- SIMD backend migrated to `fearless_simd` with runtime CPU-feature dispatch.
+  `-C target-cpu=native` is no longer needed, and the crate now builds on
+  **stable** Rust — the nightly requirement is gone.
+- The FFT core is now a recursive, cache-blocked decimation-in-time algorithm;
+  CO-BRAVO provides cache-optimal SIMD bit reversal
+  ([#106](https://github.com/smu160/PhastFT/pull/106)).
 
-This instruction first appeared in 2019: https://en.wikipedia.org/wiki/Sunny_Cove_(microarchitecture)
-Intel docs: https://builders.intel.com/docs/networkbuilders/galois-field-new-instructions-gfni-technology-guide-1-1639042826.pdf
+### Removed
 
-On CPUs from before 2019 it's usually not worth it to use AVX-512 anyway because of the severe downlocking it induces.
-- Don't multiversion on ARM
-
-NEON is part of Aarch64 baseline instruction set, so multiversioning does nothing
-- Proof-of-concept Rayon integration
-- Experimental cross-half parallelization; regressed benchmarks
-- Apply the same transformation to f32
-- Dramatically lower COBRA multi-threading threshold now that thread spawning overhead is no longer a concern; benchmarks show improvement even at 15 on my machine but I'm being conservative for now, we'll need to auto-tune COBRA in the future because hardware varies so much
-- Lower criterion sample size to 20 from its default of 100. Collecting 100 samples takes very long time because of our large number of benchmarks, and makes rayon confidently report 2-3% movements which are definitely just noise. This makes benchmarks both way faster and much more useful, we're not constantly drowning in noise anymore.
-- Report throughput in bytes in addition to Melem/s (mlems per second)
-- Try using chili as the parallelization backend instead of rayon. Benchmarks show that it regresses small sizes far less, but not enough to break even with the single-threaded implementation; but also regresses large sizes a lot. So it loses out to both rayon and single-threaded depending on the size and doesn't seem to be worth it.
-- Do not customize release profile to match the typical library use
-- Inline the generic DIT compute kernels manually now that parallelizing calls to them didn't work out
-- Port to portable_simd proper instead of stable polyfill
-- Adapt conversion to slice for fearless_simd
-- Fully convert fft_dit_chunk_8_simd_f64 to fearless_simd
-- Convert the rest of DIT functions to fearless_simd
-- Wire up new DIT kernel function signatures to DIT process
-- Dispatch to multiversioned fft_dit_chunk_2 via fearless_simd rather than multiversion
-- Move SIMD dispatch one level higher so that it's definitely, positively not messing anything up
-- Simpler SIMD loads
-- Simpler SIMD stores
-- Commit Cargo.lock for reproducible builds and reproducible benchmark results
-- Consolidate BRAVO testing
-- Change BRAVO impl from a generic to a macro in preparation for porting to fearless_simd
-- Port BRAVO to fearless_simd
-- Rename vecs to chunks
-- Failed experiment: use dynamically sized storage instead of stack scratch space; collapses performance
-- Don't explicitly pass the default value to BRAVO macro, use Default::default() instead
-- Parametrize BRAVO impl on LANEs to allow adapting to native vector width
-- Write down the rationale for using a macro
-- Repoint fearless_simd dependency to git main
-- Turn `x << 1` into `x * 2` and add comments on all the other uses of <<
-- Detect the SIMD support level early and store it in the planner
-- Wire up using the stored SIMD level to the FFT functions
-- Upgrade fearless_simd dependency to get https://github.com/linebender/fearless_simd/pull/188
-- Repeat the computation a configurable number of times
-- Make iterations configurable, remove DiF codepath
-- Targeted conversion to a for loop for just enough inlining
-- Update a comment that's not really true anymore
-- Hoist intermediate buffers out of the loop to avoid re-zeroing them every iteration
-- Rustfft example benchmark: use process_with_scratch and keep scratch space initialization cost outside the measured time
-- Port the same structure of configurable iteration count from our own harness to rustfft harness
-- Properly report results
-- Do the math internally and print average to simplify the benchmarking script
-- Rename gen_random_signal to gen_random_signal_f64
-- Apply the same changes to fftwrb example
-- Double the chunk size for f64. Improves performance for very small and very large sizes, regresses medium sizes.
-- README updates
-- Re-add mention of non-power-of-2 algorithms
-- Rewrite Features section
-- Default to 16k parallelism threshold, don't require calling guess() for it
-- Implement fft_{32,64}_interleaved_with_planner_and_opts, replacing the previous high-level-only API
-- Round out the interleaved API
-- Expose interleaving/deinterleaving functions as public but only when passing --cfg bench so they could be benchmarked
-- Move SIMD level detection out of the function being benched
-- Do not force inlining of BRAVO and CO-BRAVO implementations into algorithm selection function
-- Another attempt at massaging f64 assembly; didn't work
-
-### Refactor
-
-- Restructure code into modules
-- Move `cobra` to algorithms
-- Switch from 'wide' from git to a crates.io version now that our changes have shipped
-- Use a fast, non-secure PRNG in benchmarking harness
-- Factor out the computational kernel for f64 DiT and use as_chunks instead of chunks_exact_mut for a perf boost
-- Use as_chunks_mut everywhere else in the same file just on general principle
-- Use parallel kernel only for the largest sizes when crossing halves
-- Use rayon for parallelizing COBRA, helps performance of mid-sized FFTs by eliminating the thread spawning and termination overhead
-- Make rayon dependency optional
-- Rename parallel_join to something less technical
-- Run tests both with and without all the features
-- Move DIF-only function to DIF file
-- Use mul_add with a float inversion instead of mul_neg_add
-
-The code is more readable that way and also more portable to other SIMD libraries; wide is the only one with mul_neg_add. After my https://github.com/Lokathor/wide/pull/242 this generates identical assembly to mul_neg_add
-- Make BRAVO impl generic over T as opposed to f64-only
-- Use a branch with less forced inlining
-- Rename functions for consistency
-- Make BRAVO adapt to native SIMD width
-- Refactor Dit planner to be generated by a macro for both 32 and 64 versions, same as Dif one
-- Make f64 DiT planner dispatch on the SIMD level only once
-- Make f32 DiT planner dispatch on the SIMD level only once
-- Switch to released fearless_simd 0.4.0
-- Use RustFFT more efficiently in benchmarks for a fair comparison
-- Simplify BRAVO implementation by removing a redundant intermediate buffer
-- Use a faster RNG for generating random signal
-- Make planner fields pub(crate), they shouldn't be tampered with
-- Move 'How is it so fast?' down in the README
-
-to place usage examples more prominently since we also use the same README for docs.rs
-- Rename utils to complex_nums
-- Make all complex_nums expose fearless_simd API
-- Move cfg() out of complex_nums.rs to avoid duplicating it all over the place
-- Make BRAVO operating on chunks more explicit. Cuts down on sketchy/confusing-looking math and reduces bounds checks.
-- Pass TILE_SIDE more explicitly to helper functions instead of reconstructing it from first principles
-- Suppress counter-productive clippy lint
-- Encode buffer length in the type system
-- Simplify tile sizes. The change empirically improves performance on Zen4, which had an exception for small L1, but evidently it is not actually needed.
-- Suppress useless clippy lint
-- Factor COBRAVO out into its own function
-- Use std::hint::black_box for more accurate benchmarks
-- Use std::hint::black_box for more accurate small-size benchmarks
-- Make the f64 codelet operate entirely in registers
-- Make f32 codelet operate entirely in registers
-- Use codelets unconditionally
-- Mark mode as unused to suppress compiler warning (for now)
-- Replace zip_low()+zip_high() with interleave(), should have better performance on avx2
-- Polyfill interleave() until the upstream fearless_simd PR is merged
-- Consolidate R2C/C2R API to one variant per direction
-
-### Documentation
-
-- Update README and fix formatting
-- Update README and manifest
-- Update doc comments for rayon
-- Update doc comment
-- Add a comment to the small size benchmarks pointing to examples/benchmark.rs
-- Update README.md
-- Update README.md
-- Document running the newly added benchmark
-- Clarify COBRAVO comment
-- Add a comment on register splilling
-- *(benches)* Remove old benchmark machine configuration
-- Fix typo in README
-- Update README, benchmark plots, and fix wording
+- The public `cobra` bit-reversal module, superseded by the internal CO-BRAVO
+  implementation.
+- The nightly-toolchain requirement.
 
 ### Performance
 
-- Use `tzcnt` instruction in bit rev
-- Add unrolled specialized kernels for bit rev
-- Refactor DIT kernels to use 6 FMAs
-- Use `mul_neg_add` in lieu of separate negation
-- Add initial cache-blocked dit fft impl
-- Eliminate intermediate storage in BRAVO. Doesn't affect performance - maybe LLVM eliminated it already?
-- Optimize deinterleaving by avoiding a memset
-- Add a FFT 32 codelet to fuse first 5 stages ([#101](https://github.com/QuState/PhastFT/pull/101))
-- Add tiling to bravo to turn it into co-bravo
-- Eliminate a lot of math by chunking the data in the type system
-- Speed up random signal generation by removing per-element sqrt and sin_cos
+- Cache-blocked recursive DIT, fused first-stage codelets, FMA butterfly
+  kernels, and SIMD-accelerated CO-BRAVO bit reversal.
 
-    Generate real and imaginary parts directly from the RNG, then normalize
-    so sum(re² + im²) == 1. This eliminates the per-element sqrt() and
-    sin_cos() calls and the intermediate Vec allocation, replacing them with
-    two cheap vectorizable linear passes over the data.
-- Properly vectorize f32 codelet
-- Reduce live set in f64 codelet to reduce register pressure
-- Address the register spills in f32 codelet passes 0 and 1
-- Tighten up stage 2 assembly in f32 codelet
-- Reduce f64 codelet from 5 stages to 4, to reduce register pressure in the final stage
-- Remove extra pass used for inverse transforms
+### Fixed
 
-### Testing
-
-- Add test for DIT ifft and other test fixes
-- Test with complex-nums feature but without parallelism so that we don't have to stop testing README snippets that Rust treats as doctest
-
-### Miscellaneous Tasks
-
-- Remove unused scalar kernels for DIT
-- Drop lto=true from Cargo.toml
-
-Not forcing LTO is more representative of how the crate would actually be used in third-party code.
-
-It has no meaningful effect on benchmarks for PhastFT, but RustFFT is 15% faster on some sizes without LTO. This gives us a more accurate baseline. It also eases development - with LTO incremental build times are very long.
-- Bump `criterion` to 0.8.0
-- Remove all #[inline] directives to let the compiler make its own inlining decisions
-- Clean up imports
-- Update for the swapped order of arguments in simd_from
-- Remove declared use of nightly in preparation to porting to fearless_simd
-- Remove DIF and COBRA implementations
-- Drop Bluestein's from plans, add R2C
-- Update info on threading and complex numbers, mark Python as coming soon
-- Update comparison vs RustFFT
-- Remove wide dependency and SIMD twiddle generation
-- Remove deleted Planner32/64 from bench
-- Drop dynamic dispatch from interleaving/deinterleaving. The zip/unzip operations are part of base SSE; they appear to be already enough to saturate cache bandwidth. The compiler seems to unroll the loop and allow for ILP, so no wonder. AVX2 also requires a more expensive cross-lane shuffle so there's not a whole lot of benefit to it even in theory, and we get the exact same performance on benchmarks.
-- Remove unused dit radix-2^2 kernels
-- Bump `rand` and `bytemuck`
-- Delete old, superseded codelets
-- Remove dead (twiddles) code
-- Remove old script for generating twiddles
-- Drop unused import
-- Remove codelet control from planner now that it is always beneficial
-- Add `git-cliff` config and generated CHANGELOG.md
-- Remove old/irrelevant benchmark plots from readme
-
-### Revert
-
-- Revert "Experimental cross-half parallelization; regressed benchmarks"
-
-This reverts commit 5109c8d5331aa5b5188968f288933fa5afd467a5.
-- Revert "Use parallel kernel only for the largest sizes when crossing halves"
-
-This reverts commit 42cb42be546c521e2fd1b173b92740c8638b3bc4.
-- Revert "Try using chili as the parallelization backend instead of rayon. Benchmarks show that it regresses small sizes far less, but not enough to break even with the single-threaded implementation; but also regresses large sizes a lot. So it loses out to both rayon and single-threaded depending on the size and doesn't seem to be worth it."
-
-This reverts commit d703fe3a21b09f13d34e5d214afc6fe7c0d3e983.
-- Revert "Use mul_add with a float inversion instead of mul_neg_add"
-- Revert "Use a branch with less forced inlining"
-
-This reverts commit 979e3577d2b0b3fad3a42e2c53c23384bb6023ca.
-- Revert "Revert "Use mul_add with a float inversion instead of mul_neg_add""
-
-This reverts commit 3242122fda638d0571a6f1c99b7f3cdf2a946d16.
-- Revert "Failed experiment: use dynamically sized storage instead of stack scratch space; collapses performance"
-
-This reverts commit 6ad19afbfd3c45d85abfae4ce565cd077f276bfe.
-- Revert "Another attempt at massaging f64 assembly; didn't work"
-
-This reverts commit a2f7c2ac2821262cd4ef46e6131142f6ec752ebd.
+- Inverse FFT output ordering and assorted correctness fixes.
 
 ## [0.3.0] - 2025-09-04
 

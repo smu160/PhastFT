@@ -1,5 +1,5 @@
-[![Build](https://github.com/QuState/PhastFT/actions/workflows/rust.yml/badge.svg)](https://github.com/QuState/PhastFT/actions/workflows/rust.yml)
-[![codecov](https://codecov.io/gh/QuState/PhastFT/graph/badge.svg?token=IM86XMURHN)](https://codecov.io/gh/QuState/PhastFT)
+[![Build](https://github.com/smu160/PhastFT/actions/workflows/rust.yml/badge.svg)](https://github.com/smu160/PhastFT/actions/workflows/rust.yml)
+[![codecov](https://codecov.io/gh/smu160/PhastFT/graph/badge.svg?token=IM86XMURHN)](https://codecov.io/gh/smu160/PhastFT)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![](https://img.shields.io/crates/v/phastft)](https://crates.io/crates/phastft)
 [![](https://docs.rs/phastft/badge.svg)](https://docs.rs/phastft/)
@@ -36,18 +36,18 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 ### Rust
 
 ```rust
-use phastft::{fft_64_dit, fft_64_dit_with_planner, planner::{Direction, PlannerDit64}};
+use phastft::{fft_f64_dit, fft_f64_dit_with_planner, planner::{Direction, PlannerDit64}};
 
 let big_n = 1 << 20;
 let mut reals: Vec<f64> = (1..=big_n).map(|i| i as f64).collect();
 let mut imags: Vec<f64> = (1..=big_n).map(|i| i as f64).collect();
 
 // Simple API
-fft_64_dit(&mut reals, &mut imags, Direction::Forward);
+fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 
 // Or with a reusable planner for better performance with multiple FFTs
 let planner = PlannerDit64::new(big_n);
-fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+fft_f64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
 ```
 
 #### Complex Number Support (Interleaved Format)
@@ -55,10 +55,10 @@ fft_64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
 When the `complex-nums` feature is enabled, you can also use the interleaved
 format with the `num_complex::Complex` type:
 
-```rust
+```rust,ignore
 use phastft::{
     planner::Direction,
-    fft_64_interleaved
+    fft_f64_dit_interleaved
 };
 use num_complex::Complex;
 
@@ -66,10 +66,10 @@ let big_n = 1 << 10;
 let mut signal: Vec<Complex<f64>> = (1..=big_n)
     .map(|i| Complex::new(i as f64, i as f64))
     .collect();
-fft_64_interleaved(&mut signal, Direction::Forward);
+fft_f64_dit_interleaved(&mut signal, Direction::Forward);
 ```
 
-Both `fft_32_interleaved` and `fft_64_interleaved` are available for `f32` and
+Both `fft_f32_dit_interleaved` and `fft_f64_dit_interleaved` are available for `f32` and
 `f64` precision respectively.
 
 #### Real-Valued FFT (R2C)
@@ -79,39 +79,29 @@ running a full complex FFT with zeroed imaginary components. The output is the
 *compact* `N/2 + 1` complex spectrum. The remaining `N/2 - 1` bins can be
 derived via the conjugate symmetry `X[N - k] = conj(X[k])`.
 
-The same `PlannerR2c64` drives both directions. R2C is in-place (output
-buffers double as scratch for the inner half-length complex FFT). C2R takes
-caller-provided scratch buffers (`N/2` reals each for re and im); allocation
-is the caller's choice.
+The bare `r2c_fft_f64` / `c2r_fft_f64` build a planner (and, for C2R, scratch
+buffers) for you. R2C is in-place — the output buffers double as scratch for the
+inner half-length complex FFT.
 
 ```rust
-use phastft::{c2r_fft_f64, options::Options, planner::PlannerR2c64, r2c_fft_f64};
+use phastft::{c2r_fft_f64, r2c_fft_f64};
 
 let n = 1 << 16;
 let signal: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
 
-let planner = PlannerR2c64::new(n);
-let opts = Options::guess_options(n / 2);
-
+// Forward real FFT — the compact N/2 + 1 spectrum.
 let mut spec_re = vec![0.0; n / 2 + 1];
 let mut spec_im = vec![0.0; n / 2 + 1];
-r2c_fft_f64(&signal, &mut spec_re, &mut spec_im, &planner, &opts);
+r2c_fft_f64(&signal, &mut spec_re, &mut spec_im);
 
-let mut scratch_re = vec![0.0; n / 2];
-let mut scratch_im = vec![0.0; n / 2];
+// Inverse — recover the N real samples.
 let mut recovered = vec![0.0; n];
-c2r_fft_f64(
-    &spec_re,
-    &spec_im,
-    &mut recovered,
-    &planner,
-    &opts,
-    &mut scratch_re,
-    &mut scratch_im,
-);
+c2r_fft_f64(&spec_re, &spec_im, &mut recovered);
 ```
 
-### Python (coming soon)
+For repeated transforms of the same size, reuse a `PlannerR2c64` via
+`r2c_fft_f64_with_planner` / `c2r_fft_f64_with_planner`, or take full control of
+options and C2R scratch buffers with the `_with_planner_and_opts` tier.
 
 ### Normalization
 
@@ -136,18 +126,20 @@ don't hesitate to create an issue.
 
 ## Benchmarks
 
-PhastFT is benchmarked against several other FFT libraries. Scripts and
-instructions to reproduce benchmark results and
-plots are available [here](https://github.com/QuState/PhastFT/tree/main/benches#readme).
+PhastFT is benchmarked against several other FFT libraries. The plots below show
+PhastFT with the `parallel` feature enabled (multi-threaded) against RustFFT and
+FFTW3. The single-threaded comparison, along with the scripts and instructions to
+reproduce every result, lives in the [benchmarks
+README](https://github.com/smu160/PhastFT/tree/main/benches#readme).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N — multi-threaded" alt="C2C Forward (f32), small-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N — multi-threaded" alt="C2C Forward (f32), large-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/QuState/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N — multi-threaded" alt="C2C Forward (f64), small-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N — multi-threaded" alt="C2C Forward (f64), large-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple

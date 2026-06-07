@@ -3,30 +3,14 @@
 //! pre-computing twiddle factors based on the input signal length, as well as the
 //! direction of the FFT.
 
-/// Reverse is for running the Inverse Fast Fourier Transform (IFFT)
+/// Inverse is for running the Inverse Fast Fourier Transform (IFFT)
 /// Forward is for running the regular FFT
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     /// Leave the exponent term in the twiddle factor alone
     Forward = 1,
     /// Multiply the exponent term in the twiddle factor by -1
-    Reverse = -1,
-}
-
-/// Controls how the planner selects algorithm variants.
-///
-/// The planner can choose between different internal strategies (e.g., whether to
-/// use the fused 32-point codelet). `Heuristic` uses a conservative static rule
-/// with zero planning overhead. `Tune` benchmarks both paths at plan time and
-/// picks whichever is faster, at the cost of additional planning time.
-#[derive(Copy, Clone, Debug, Default)]
-pub enum PlannerMode {
-    /// Use a conservative static heuristic. Zero overhead at plan time.
-    #[default]
-    Heuristic,
-    /// Benchmark both paths at plan time, pick whichever is faster.
-    /// Adds planning overhead proportional to FFT size.
-    Tune,
+    Inverse = -1,
 }
 
 macro_rules! impl_planner_dit_for {
@@ -35,6 +19,7 @@ macro_rules! impl_planner_dit_for {
         ///
         /// The planner is direction-agnostic. Namely, the same instance can drive both forward and
         /// inverse transforms. Direction is supplied per-call to the `fft_*_dit*` functions.
+        #[derive(Clone)]
         pub struct $struct_name {
             /// Twiddles for each stage that needs them (stages with chunk_size > 64)
             /// Each element contains (twiddles_re, twiddles_im) for that stage
@@ -48,19 +33,14 @@ macro_rules! impl_planner_dit_for {
         impl $struct_name {
             /// Create a DIT planner for an FFT of size `num_points`.
             ///
-            /// Uses [`PlannerMode::Heuristic`] to decide algorithm variants.
-            /// For explicit control, use [`Self::with_mode`].
-            pub fn new(num_points: usize) -> Self {
-                Self::with_mode(num_points, PlannerMode::Heuristic)
-            }
-
-            /// Create a DIT planner with explicit control over algorithm selection.
+            /// Pre-computes the per-stage twiddle factors and detects the SIMD
+            /// support level once, so the planner can be reused across many
+            /// FFTs of the same size.
             ///
-            /// - [`PlannerMode::Heuristic`]: Zero-cost static rule. Conservative — may
-            ///   leave performance on the table on platforms with large L1i caches.
-            /// - [`PlannerMode::Tune`]: Benchmarks both paths at plan time. Use this
-            ///   when you can afford extra planning time (e.g., planner is reused).
-            pub fn with_mode(num_points: usize, _mode: PlannerMode) -> Self {
+            /// # Panics
+            ///
+            /// Panics if `num_points` is not a power of two.
+            pub fn new(num_points: usize) -> Self {
                 assert!(num_points > 0 && num_points.is_power_of_two());
 
                 let simd_level = fearless_simd::Level::new();
@@ -97,18 +77,26 @@ macro_rules! impl_planner_dit_for {
                 }
             }
         }
+
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("fft_size", &(1usize << self.log_n))
+                    .finish_non_exhaustive()
+            }
+        }
     };
 }
 
 impl_planner_dit_for!(
     PlannerDit64,
     f64,
-    crate::algorithms::dit::fft_64_dit_with_planner_and_opts
+    crate::algorithms::dit::fft_f64_dit_with_planner_and_opts
 );
 impl_planner_dit_for!(
     PlannerDit32,
     f32,
-    crate::algorithms::dit::fft_32_dit_with_planner_and_opts
+    crate::algorithms::dit::fft_f32_dit_with_planner_and_opts
 );
 
 // ---------------------------------------------------------------------------
@@ -168,6 +156,7 @@ macro_rules! impl_planner_r2c_for {
         ///
         /// The planner is direction-agnostic. Namely, the same instance can drive both
         /// R2C and C2R transforms.
+        #[derive(Clone)]
         pub struct $struct_name {
             /// Inner DIT planner for the N/2 complex FFT
             pub(crate) dit_planner: $dit_planner,
@@ -196,6 +185,14 @@ macro_rules! impl_planner_r2c_for {
                     w_im,
                     n,
                 }
+            }
+        }
+
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("n", &self.n)
+                    .finish_non_exhaustive()
             }
         }
     };

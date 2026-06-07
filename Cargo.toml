@@ -1,15 +1,16 @@
 [package]
 name = "phastft"
-version = "0.4.0-rc.1"
+version = "0.4.0"
+rust-version = "1.88"
 edition = "2021"
 authors = ["Saveliy Yusufov", "Shnatsel"]
 license = "MIT OR Apache-2.0"
-description = "A high-performance, quantum-inspired, implementation of FFT in pure Rust"
-repository = "https://github.com/QuState/PhastFT"
+description = "A high-performance Fast Fourier Transform (FFT) library written in pure and safe Rust"
+repository = "https://github.com/smu160/PhastFT"
 readme = "README.md"
 documentation = "https://docs.rs/phastft"
 keywords = ["quantum", "fft", "discrete", "fourier", "transform"]
-categories = ["algorithms", "compression", "science"]
+categories = ["algorithms", "mathematics", "science"]
 exclude = [
 	".github",
 	"assets",
@@ -36,7 +37,6 @@ bench-internals = ["complex-nums"]
 
 [dev-dependencies]
 criterion = "0.8.2"
-fearless_simd = "0.4.0"
 fftw = "0.8.0"
 rand = "0.10.1"
 realfft = "3.5.0"
@@ -58,10 +58,6 @@ harness = false
 name = "interleave"
 harness = false
 required-features = ["complex-nums"]
-
-[[bench]]
-name = "planner_mode"
-harness = false
 
 [[bench]]
 name = "bit_reversal"

@@ -12,7 +12,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use phastft::options::Options;
 use phastft::planner::{Direction, PlannerDit32, PlannerDit64};
-use phastft::{fft_32_dit_with_planner_and_opts, fft_64_dit_with_planner_and_opts};
+use phastft::{fft_f32_dit_with_planner_and_opts, fft_f64_dit_with_planner_and_opts};
 
 mod common;
 use common::{bench_at_sizes, groups, ids, split_complex, throughput_complex, LENGTHS};
@@ -48,7 +48,7 @@ phastft_c2c!(
     fwd_f32,
     f32,
     PlannerDit32,
-    fft_32_dit_with_planner_and_opts,
+    fft_f32_dit_with_planner_and_opts,
     Direction::Forward,
     groups::C2C_FORWARD_F32
 );
@@ -56,15 +56,15 @@ phastft_c2c!(
     inv_f32,
     f32,
     PlannerDit32,
-    fft_32_dit_with_planner_and_opts,
-    Direction::Reverse,
+    fft_f32_dit_with_planner_and_opts,
+    Direction::Inverse,
     groups::C2C_INVERSE_F32
 );
 phastft_c2c!(
     fwd_f64,
     f64,
     PlannerDit64,
-    fft_64_dit_with_planner_and_opts,
+    fft_f64_dit_with_planner_and_opts,
     Direction::Forward,
     groups::C2C_FORWARD_F64
 );
@@ -72,8 +72,8 @@ phastft_c2c!(
     inv_f64,
     f64,
     PlannerDit64,
-    fft_64_dit_with_planner_and_opts,
-    Direction::Reverse,
+    fft_f64_dit_with_planner_and_opts,
+    Direction::Inverse,
     groups::C2C_INVERSE_F64
 );
 
