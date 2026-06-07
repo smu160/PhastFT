@@ -87,6 +87,33 @@ to surface the gap than to silently normalize against a guessed
 baseline. PEP 723 inline metadata means `uv run` fetches matplotlib /
 numpy / pandas on demand — no venv required.
 
+### Single-threaded overlay results
+
+These are the single-threaded cross-library overlays: PhastFT runs on one
+thread (without the `parallel` feature) against RustFFT and FFTW3. The forward
+transforms' multi-threaded counterparts headline the [root
+README](../README.md#benchmarks).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N — single-threaded" alt="C2C Forward (f32), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N — single-threaded" alt="C2C Forward (f32), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N — single-threaded" alt="C2C Forward (f64), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N — single-threaded" alt="C2C Forward (f64), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f32_6_14.svg" width="400" title="C2C Inverse (f32), small-N — single-threaded" alt="C2C Inverse (f32), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f32_15_24.svg" width="400" title="C2C Inverse (f32), large-N — single-threaded" alt="C2C Inverse (f32), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f64_6_14.svg" width="400" title="C2C Inverse (f64), small-N — single-threaded" alt="C2C Inverse (f64), small-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_inverse_f64_15_24.svg" width="400" title="C2C Inverse (f64), large-N — single-threaded" alt="C2C Inverse (f64), large-N: PhastFT (single-threaded) vs. RustFFT vs. FFTW3">
+</p>
+
 ### Group naming convention
 
 Group names are **snake_case** with category prefixes:

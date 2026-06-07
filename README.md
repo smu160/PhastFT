@@ -126,18 +126,20 @@ don't hesitate to create an issue.
 
 ## Benchmarks
 
-PhastFT is benchmarked against several other FFT libraries. Scripts and
-instructions to reproduce benchmark results and
-plots are available [here](https://github.com/smu160/PhastFT/tree/main/benches#readme).
+PhastFT is benchmarked against several other FFT libraries. The plots below show
+PhastFT with the `parallel` feature enabled (multi-threaded) against RustFFT and
+FFTW3. The single-threaded comparison, along with the scripts and instructions to
+reproduce every result, lives in the [benchmarks
+README](https://github.com/smu160/PhastFT/tree/main/benches#readme).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N" alt="C2C Forward (f32), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N" alt="C2C Forward (f32), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f32_6_14.svg" width="400" title="C2C Forward (f32), small-N — multi-threaded" alt="C2C Forward (f32), small-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f32_15_24.svg" width="400" title="C2C Forward (f32), large-N — multi-threaded" alt="C2C Forward (f32), large-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N" alt="C2C Forward (f64), small-N: PhastFT vs. RustFFT vs. FFTW3">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N" alt="C2C Forward (f64), large-N: PhastFT vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f64_6_14.svg" width="400" title="C2C Forward (f64), small-N — multi-threaded" alt="C2C Forward (f64), small-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_phastft_parallel_c2c_forward_f64_15_24.svg" width="400" title="C2C Forward (f64), large-N — multi-threaded" alt="C2C Forward (f64), large-N: PhastFT (multi-threaded) vs. RustFFT vs. FFTW3">
 </p>
 
 <p align="center"><em>Benchmarks were carried out on a MacBook Air with Apple
