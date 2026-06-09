@@ -36,7 +36,7 @@ cargo bench --all-features                 # every target
 | `realfft`       | (none)             | PhastFT R2C/C2R (`r2c_fft_*`, `c2r_fft_*`) vs. the `realfft` crate — forward + inverse, f32 + f64.                                                                                                        |
 | `planner`       | (none)             | Planner construction cost (`PlannerDit{32,64}::new` vs. RustFFT's `FftPlanner::plan_fft_forward`).                                                                                                        |
 | `interleave`    | `complex-nums`     | Internal SIMD interleave / deinterleave kernels.                                                                                                                                                          |
-| `bit_reversal`  | `bench-internals`  | Internal CO-BRAVO vs. BRAVO bit-reversal kernels.                                                                                                                                                         |
+| `bit_reversal`  | `bench-internals`  | Five bit-reversal kernels head-to-head — CO-BRAVO, BRAVO, COBRA, Elaan, Naive ([`BIT_REVERSAL.md`](BIT_REVERSAL.md)).                                                                                     |
 
 ### Why the complex comparison is split across five binaries
 
@@ -81,7 +81,7 @@ two files per group (small-N and large-N halves split at the size
 list's midpoint). The `GROUPS` registry in the script holds both the
 humanized title and per-group default baseline (`RustFFT` for the
 `c2c_*` groups, `realfft` for `r2c_*` / `c2r_*`, `Heuristic` for
-`planner_mode_*`, `BRAVO` for `kernel_bit_reversal_*`). Groups on disk
+`planner_mode_*`, `COBRA` for `kernel_bit_reversal_*`). Groups on disk
 that aren't in the registry get a loud warning and are skipped — better
 to surface the gap than to silently normalize against a guessed
 baseline. PEP 723 inline metadata means `uv run` fetches matplotlib /
