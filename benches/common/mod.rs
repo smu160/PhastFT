@@ -7,15 +7,9 @@
 //!
 //! ## Group naming convention
 //!
-//! Group names are **snake_case** with category prefixes (`c2c_*`, `r2c_*`,
+//! Group names are snake_case with category prefixes (`c2c_*`, `r2c_*`,
 //! `c2r_*`, `planner_*`, `kernel_*`) so they survive criterion's filename
-//! sanitizer (which replaces `?"/\*<>:|^` with `_`) unchanged, can be
-//! passed to `cargo bench --bench <name> <filter>` and
-//! `plot_criterion_overlay.py --groups <list>` without shell quoting, and
-//! tab-complete in shells. The Python overlay script humanizes them at
-//! plot time via the `GROUPS` registry — chart titles read "C2C Forward
-//! (f32)" or "R2C (f32)".
-
+//! sanitizer.
 #![allow(dead_code)]
 
 use criterion::measurement::WallTime;
@@ -274,6 +268,9 @@ pub mod ids {
 
     pub const COBRAVO: &str = "COBRAVO";
     pub const BRAVO: &str = "BRAVO";
+    pub const COBRA: &str = "COBRA";
+    pub const ELAAN: &str = "Elaan";
+    pub const BASIC: &str = "Naive BR";
 
     pub const DEINTERLEAVE: &str = "deinterleave";
     pub const COMBINE_RE_IM: &str = "combine_re_im";

@@ -94,8 +94,8 @@ GROUPS: dict[str, GroupSpec] = {
     "planner_f64":              GroupSpec("Planner (f64)",       "RustFFT"),
     "planner_mode_f32":         GroupSpec("Planner Mode (f32)",  "Heuristic"),
     "planner_mode_f64":         GroupSpec("Planner Mode (f64)",  "Heuristic"),
-    "kernel_bit_reversal_f32":  GroupSpec("Bit Reversal (f32)",  "BRAVO"),
-    "kernel_bit_reversal_f64":  GroupSpec("Bit Reversal (f64)",  "BRAVO"),
+    "kernel_bit_reversal_f32":  GroupSpec("Bit Reversal (f32)",  "COBRA"),
+    "kernel_bit_reversal_f64":  GroupSpec("Bit Reversal (f64)",  "COBRA"),
     "kernel_deinterleave_f32":  GroupSpec("Deinterleave (f32)",  None),
     "kernel_deinterleave_f64":  GroupSpec("Deinterleave (f64)",  None),
     "kernel_combine_re_im_f32": GroupSpec("Combine Re/Im (f32)", None),
@@ -119,6 +119,9 @@ SERIES_REGISTRY: dict[str, tuple[str, int]] = {
     "Tune":          ("#D55E00", 1),
     "BRAVO":         ("#0072B2", 0),
     "COBRAVO":       ("#D55E00", 1),
+    "COBRA":         ("#009E73", 2),
+    "Elaan":         ("#E69F00", 3),
+    "Naive BR":      ("#CC79A7", 4),
     "deinterleave":  ("#D55E00", 0),
     "combine_re_im": ("#D55E00", 0),
 }
@@ -360,7 +363,7 @@ def plot_half(
     ax.set_ylim(0, max(top * 1.16, 1.16))
 
     ax.set_title(f"{humanize(group_name)}: Runtime relative to {baseline}")
-    ax.set_xlabel("Input size")
+    ax.set_xlabel("Input size (bytes)")
     ax.set_ylabel(
         f"Runtime relative to {baseline} median\n(median ± IQR, lower is faster)"
     )

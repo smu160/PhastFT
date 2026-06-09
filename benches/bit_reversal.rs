@@ -5,6 +5,7 @@ use rand::distr::StandardUniform;
 use rand::prelude::*;
 
 mod common;
+mod legacy_bitrev;
 use common::{bench_at_sizes, groups, ids, throughput_real, BIT_REVERSAL_LENGTHS};
 
 fn random_vec<T>(n: usize) -> Vec<T>
@@ -182,6 +183,38 @@ macro_rules! bit_reversal_bench {
                         || random_vec::<$float>(n),
                         |mut data| {
                             dispatch!(simd_level, simd => $bravo(simd, &mut data, n));
+                            data
+                        },
+                        criterion::BatchSize::LargeInput,
+                    );
+                });
+                // COBRA falls back to bit_rev (Elaan) for n <= 14, so the COBRA
+                // and Elaan series are identical below 2^15 by construction.
+                g.bench_function(BenchmarkId::new(ids::COBRA, len), |b| {
+                    b.iter_batched(
+                        || random_vec::<$float>(n),
+                        |mut data| {
+                            legacy_bitrev::cobra_apply(&mut data, n);
+                            data
+                        },
+                        criterion::BatchSize::LargeInput,
+                    );
+                });
+                g.bench_function(BenchmarkId::new(ids::ELAAN, len), |b| {
+                    b.iter_batched(
+                        || random_vec::<$float>(n),
+                        |mut data| {
+                            legacy_bitrev::bit_rev(&mut data, n);
+                            data
+                        },
+                        criterion::BatchSize::LargeInput,
+                    );
+                });
+                g.bench_function(BenchmarkId::new(ids::BASIC, len), |b| {
+                    b.iter_batched(
+                        || random_vec::<$float>(n),
+                        |mut data| {
+                            legacy_bitrev::bit_reverse_permutation(&mut data);
                             data
                         },
                         criterion::BatchSize::LargeInput,
