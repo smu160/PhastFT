@@ -2,6 +2,16 @@
 
 A micro-benchmark of 5 [bit-reversal permutation](https://en.wikipedia.org/wiki/Bit-reversal_permutation) algorithms.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f32_10_16.svg" width="480" title="Bit Reversal (f32), small-N" alt="Bit Reversal (f32), 2^10–2^16: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f32_17_24.svg" width="480" title="Bit Reversal (f32), large-N" alt="Bit Reversal (f32), 2^17–2^24: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f64_10_16.svg" width="480" title="Bit Reversal (f64), small-N" alt="Bit Reversal (f64), 2^10–2^16: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
+  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f64_17_24.svg" width="480" title="Bit Reversal (f64), large-N" alt="Bit Reversal (f64), 2^17–2^24: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
+</p>
+
 Benchmarking platform:
 
 | Component | Specification |
@@ -14,16 +24,6 @@ Benchmarking platform:
 | **L1 cache (I/D, per core)** | P-cores 192/128 KiB; E-cores 128/64 KiB |
 | **L2 cache (per 4-core cluster)** | P 16 MiB  E 4 MiB |
 | **Cache line size** | 128 B |
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f32_10_16.svg" width="480" title="Bit Reversal (f32), small-N" alt="Bit Reversal (f32), 2^10–2^16: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f32_17_24.svg" width="480" title="Bit Reversal (f32), large-N" alt="Bit Reversal (f32), 2^17–2^24: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f64_10_16.svg" width="480" title="Bit Reversal (f64), small-N" alt="Bit Reversal (f64), 2^10–2^16: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
-  <img src="https://raw.githubusercontent.com/smu160/PhastFT/main/assets/criterion_overlay_kernel_bit_reversal_f64_17_24.svg" width="480" title="Bit Reversal (f64), large-N" alt="Bit Reversal (f64), 2^17–2^24: COBRAVO, BRAVO, COBRA, Elaan, Naive BR runtime relative to COBRA">
-</p>
 
 ### Steps to Reproduce
 
