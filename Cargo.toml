@@ -87,4 +87,5 @@ debug = true
 [package.metadata.docs.rs]
 all-features = true
 
+# for now we declare lints in lib.rs
 [lints.rust]
