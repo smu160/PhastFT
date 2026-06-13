@@ -2,12 +2,10 @@
 //!
 //! They are not part of the public API because the module they're in is private.
 //! They can be accessed with `--features bench-internals` for benchmarking only.
-
 use bytemuck::cast_slice;
 use num_complex::Complex;
-use num_traits::Float;
 
-/// Separates data like `[1, 2, 3, 4]` into `([1, 3], [2, 4])` for any length
+/// Separates data like `[1, 2, 3, 4]` into `([1, 3], [2, 4])` for any *even* length
 pub fn deinterleave<T: Copy>(input: &[T]) -> (Vec<T>, Vec<T>) {
     // Despite relying on autovectorization, this is the fastest approach
     // because we don't need to initialize the output Vecs.
@@ -38,7 +36,10 @@ pub fn deinterleave_complex32(signal: &[Complex<f32>]) -> (Vec<f32>, Vec<f32>) {
 /// # Panics
 ///
 /// Panics if `reals.len() != imags.len()`.
-pub fn combine_re_im<T: Float>(reals: &[T], imags: &[T]) -> Vec<Complex<T>> {
+pub fn combine_re_im<T>(reals: &[T], imags: &[T]) -> Vec<Complex<T>>
+where
+    T: Copy,
+{
     assert_eq!(reals.len(), imags.len());
 
     reals
@@ -63,7 +64,16 @@ mod tests {
     /// Slow but obviously correct implementation of deinterleaving,
     /// to be used in tests
     fn deinterleave_naive<T: Copy>(input: &[T]) -> (Vec<T>, Vec<T>) {
-        input.chunks_exact(2).map(|c| (c[0], c[1])).unzip()
+        let half_len = input.len() / 2;
+        let mut evens = Vec::with_capacity(half_len);
+        let mut odds = Vec::with_capacity(half_len);
+
+        for i in 0..half_len {
+            evens.push(input[2 * i]);
+            odds.push(input[2 * i + 1])
+        }
+        // assert_eq!(evens.len() + odds.len(), input.len());
+        (evens, odds)
     }
 
     #[test]
