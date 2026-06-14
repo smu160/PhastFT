@@ -6,7 +6,7 @@ use fearless_simd::{f32x16, f32x4, f32x8, f64x4, f64x8, Simd, SimdBase, SimdFloa
 use num_traits::Float;
 
 /// DIT butterflies for stage 0 (i.e., where `chunk_size == 2`)
-/// Identical to DIF version (no twiddles at size 2)
+/// Identical to DIF version (no twiddles when `chunk_size == 2`)
 #[inline(always)] // required by fearless_simd
 pub fn fft_dit_chunk_2<S: Simd, T: Float>(_simd: S, reals: &mut [T], imags: &mut [T]) {
     reals
@@ -438,34 +438,9 @@ fn fft_dit_chunk_32_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut [f
         ],
     );
 
-    // Second 8 twiddle factors for W_32^k where k = 8..15
-    let twiddle_re_8_15 = f64x8::simd_from(
-        simd,
-        [
-            0.0,                              // W_32^8 = 0 - i
-            -0.19509032201612825,             // W_32^9
-            -0.3826834323650898,              // W_32^10
-            -0.5555702330196022,              // W_32^11
-            -std::f64::consts::FRAC_1_SQRT_2, // W_32^12
-            -0.8314696123025452,              // W_32^13
-            -0.9238795325112867,              // W_32^14
-            -0.9807852804032304,              // W_32^15
-        ],
-    );
-
-    let twiddle_im_8_15 = f64x8::simd_from(
-        simd,
-        [
-            -1.0,                             // W_32^8
-            -0.9807852804032304,              // W_32^9
-            -0.9238795325112867,              // W_32^10
-            -0.8314696123025452,              // W_32^11
-            -std::f64::consts::FRAC_1_SQRT_2, // W_32^12
-            -0.5555702330196022,              // W_32^13
-            -0.3826834323650898,              // W_32^14
-            -0.19509032201612825,             // W_32^15
-        ],
-    );
+    // W_32^{8..15} = -i * W_32^{0..7}, so re_8_15 == im_0_7 and im_8_15 == -re_0_7.
+    // The 8..15 butterfly below derives them from the resident 0..7 twiddles instead of
+    // holding two more f64x8 vectors live across the loop.
 
     (reals.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
         .zip(imags.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
@@ -498,13 +473,14 @@ fn fft_dit_chunk_32_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut [f
             let in0_im_8_15 = f64x8::from_slice(simd, &imags_s0[8..16]);
             let in1_im_8_15 = f64x8::from_slice(simd, &imags_s1[8..16]);
 
-            let out0_re_8_15 = twiddle_im_8_15.mul_add(
-                -in1_im_8_15,
-                twiddle_re_8_15.mul_add(in1_re_8_15, in0_re_8_15),
+            // re_8_15 == im_0_7, im_8_15 == -re_0_7
+            let out0_re_8_15 = twiddle_re_0_7.mul_add(
+                in1_im_8_15,
+                twiddle_im_0_7.mul_add(in1_re_8_15, in0_re_8_15),
             );
-            let out0_im_8_15 = twiddle_im_8_15.mul_add(
-                in1_re_8_15,
-                twiddle_re_8_15.mul_add(in1_im_8_15, in0_im_8_15),
+            let out0_im_8_15 = twiddle_re_0_7.mul_add(
+                -in1_re_8_15,
+                twiddle_im_0_7.mul_add(in1_im_8_15, in0_im_8_15),
             );
 
             let out1_re_8_15 = two.mul_sub(in0_re_8_15, out0_re_8_15);
@@ -680,63 +656,12 @@ fn fft_dit_chunk_64_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut [f
         ],
     );
 
-    // Twiddles for k = 16..23
-    let twiddle_re_16_23 = f64x8::simd_from(
-        simd,
-        [
-            0.0,                  // W_64^16 = -i
-            -0.0980171403295606,  // W_64^17
-            -0.19509032201612825, // W_64^18
-            -0.29028467725446233, // W_64^19
-            -0.3826834323650898,  // W_64^20
-            -0.47139673682599764, // W_64^21
-            -0.5555702330196022,  // W_64^22
-            -0.6343932841636455,  // W_64^23
-        ],
-    );
-
-    let twiddle_im_16_23 = f64x8::simd_from(
-        simd,
-        [
-            -1.0,                // W_64^16
-            -0.9951847266721969, // W_64^17
-            -0.9807852804032304, // W_64^18
-            -0.9569403357322089, // W_64^19
-            -0.9238795325112867, // W_64^20
-            -0.8819212643483549, // W_64^21
-            -0.8314696123025452, // W_64^22
-            -0.773010453362737,  // W_64^23
-        ],
-    );
-
-    // Twiddles for k = 24..31
-    let twiddle_re_24_31 = f64x8::simd_from(
-        simd,
-        [
-            -std::f64::consts::FRAC_1_SQRT_2, // W_64^24
-            -0.773010453362737,               // W_64^25
-            -0.8314696123025452,              // W_64^26
-            -0.8819212643483549,              // W_64^27
-            -0.9238795325112867,              // W_64^28
-            -0.9569403357322089,              // W_64^29
-            -0.9807852804032304,              // W_64^30
-            -0.9951847266721969,              // W_64^31
-        ],
-    );
-
-    let twiddle_im_24_31 = f64x8::simd_from(
-        simd,
-        [
-            -std::f64::consts::FRAC_1_SQRT_2, // W_64^24
-            -0.6343932841636455,              // W_64^25
-            -0.5555702330196022,              // W_64^26
-            -0.47139673682599764,             // W_64^27
-            -0.3826834323650898,              // W_64^28
-            -0.29028467725446233,             // W_64^29
-            -0.19509032201612825,             // W_64^30
-            -0.0980171403295606,              // W_64^31
-        ],
-    );
+    // W_64^{16..31} = -i * W_64^{0..15}, so the second-half twiddles are the first-half ones with
+    // re/im swapped and a sign flip. That is,
+    // `re_16_23 == im_0_7`, `im_16_23 == -re_0_7`, `re_24_31 == im_8_15`, `im_24_31 == -re_8_15`.
+    //
+    // The 16..31 butterflies below derive them from the resident 0..15
+    // twiddles instead of holding four more f64x8 vectors live across the loop.
 
     (reals.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
         .zip(imags.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
@@ -760,6 +685,27 @@ fn fft_dit_chunk_64_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut [f
             out1_re.store_slice(&mut reals_s1[0..8]);
             out1_im.store_slice(&mut imags_s1[0..8]);
 
+            // Blocks run in the order 0,16,8,24 (not 0,8,16,24): block 16..23 reuses the 0..7
+            // twiddles and 24..31 reuses the 8..15 twiddles, so pairing each sharing block
+            // adjacently keeps just one twiddle pair live at a time.
+
+            // Process butterflies 16..23
+            let in0_re = f64x8::from_slice(simd, &reals_s0[16..24]);
+            let in1_re = f64x8::from_slice(simd, &reals_s1[16..24]);
+            let in0_im = f64x8::from_slice(simd, &imags_s0[16..24]);
+            let in1_im = f64x8::from_slice(simd, &imags_s1[16..24]);
+
+            // re_16_23 == im_0_7, im_16_23 == -re_0_7, with the sign folded into inputs.
+            let out0_re = twiddle_re_0_7.mul_add(in1_im, twiddle_im_0_7.mul_add(in1_re, in0_re));
+            let out0_im = twiddle_re_0_7.mul_add(-in1_re, twiddle_im_0_7.mul_add(in1_im, in0_im));
+            let out1_re = two.mul_sub(in0_re, out0_re);
+            let out1_im = two.mul_sub(in0_im, out0_im);
+
+            out0_re.store_slice(&mut reals_s0[16..24]);
+            out0_im.store_slice(&mut imags_s0[16..24]);
+            out1_re.store_slice(&mut reals_s1[16..24]);
+            out1_im.store_slice(&mut imags_s1[16..24]);
+
             // Process butterflies 8..15
             let in0_re = f64x8::from_slice(simd, &reals_s0[8..16]);
             let in1_re = f64x8::from_slice(simd, &reals_s1[8..16]);
@@ -776,34 +722,15 @@ fn fft_dit_chunk_64_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut [f
             out1_re.store_slice(&mut reals_s1[8..16]);
             out1_im.store_slice(&mut imags_s1[8..16]);
 
-            // Process butterflies 16..23
-            let in0_re = f64x8::from_slice(simd, &reals_s0[16..24]);
-            let in1_re = f64x8::from_slice(simd, &reals_s1[16..24]);
-            let in0_im = f64x8::from_slice(simd, &imags_s0[16..24]);
-            let in1_im = f64x8::from_slice(simd, &imags_s1[16..24]);
-
-            let out0_re =
-                twiddle_im_16_23.mul_add(-in1_im, twiddle_re_16_23.mul_add(in1_re, in0_re));
-            let out0_im =
-                twiddle_im_16_23.mul_add(in1_re, twiddle_re_16_23.mul_add(in1_im, in0_im));
-            let out1_re = two.mul_sub(in0_re, out0_re);
-            let out1_im = two.mul_sub(in0_im, out0_im);
-
-            out0_re.store_slice(&mut reals_s0[16..24]);
-            out0_im.store_slice(&mut imags_s0[16..24]);
-            out1_re.store_slice(&mut reals_s1[16..24]);
-            out1_im.store_slice(&mut imags_s1[16..24]);
-
             // Process butterflies 24..31
             let in0_re = f64x8::from_slice(simd, &reals_s0[24..32]);
             let in1_re = f64x8::from_slice(simd, &reals_s1[24..32]);
             let in0_im = f64x8::from_slice(simd, &imags_s0[24..32]);
             let in1_im = f64x8::from_slice(simd, &imags_s1[24..32]);
 
-            let out0_re =
-                twiddle_im_24_31.mul_add(-in1_im, twiddle_re_24_31.mul_add(in1_re, in0_re));
-            let out0_im =
-                twiddle_im_24_31.mul_add(in1_re, twiddle_re_24_31.mul_add(in1_im, in0_im));
+            // re_24_31 == im_8_15, im_24_31 == -re_8_15, with the sign folded into inputs.
+            let out0_re = twiddle_re_8_15.mul_add(in1_im, twiddle_im_8_15.mul_add(in1_re, in0_re));
+            let out0_im = twiddle_re_8_15.mul_add(-in1_re, twiddle_im_8_15.mul_add(in1_im, in0_im));
             let out1_re = two.mul_sub(in0_re, out0_re);
             let out1_im = two.mul_sub(in0_im, out0_im);
 
@@ -877,50 +804,9 @@ fn fft_dit_chunk_64_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut [f
         ],
     );
 
-    // Twiddles for k = 16..31
-    let twiddle_re_16_31 = f32x16::simd_from(
-        simd,
-        [
-            0.0_f32,                          // W_64^16 = -i
-            -0.098_017_14_f32,                // W_64^17
-            -0.195_090_32_f32,                // W_64^18
-            -0.290_284_66_f32,                // W_64^19
-            -0.382_683_43_f32,                // W_64^20
-            -0.471_396_74_f32,                // W_64^21
-            -0.555_570_24_f32,                // W_64^22
-            -0.634_393_3_f32,                 // W_64^23
-            -std::f32::consts::FRAC_1_SQRT_2, // W_64^24
-            -0.773_010_43_f32,                // W_64^25
-            -0.831_469_6_f32,                 // W_64^26
-            -0.881_921_3_f32,                 // W_64^27
-            -0.923_879_5_f32,                 // W_64^28
-            -0.956_940_35_f32,                // W_64^29
-            -0.980_785_25_f32,                // W_64^30
-            -0.995_184_7_f32,                 // W_64^31
-        ],
-    );
-
-    let twiddle_im_16_31 = f32x16::simd_from(
-        simd,
-        [
-            -1.0_f32,                         // W_64^16
-            -0.995_184_7_f32,                 // W_64^17
-            -0.980_785_25_f32,                // W_64^18
-            -0.956_940_35_f32,                // W_64^19
-            -0.923_879_5_f32,                 // W_64^20
-            -0.881_921_3_f32,                 // W_64^21
-            -0.831_469_6_f32,                 // W_64^22
-            -0.773_010_43_f32,                // W_64^23
-            -std::f32::consts::FRAC_1_SQRT_2, // W_64^24
-            -0.634_393_3_f32,                 // W_64^25
-            -0.555_570_24_f32,                // W_64^26
-            -0.471_396_74_f32,                // W_64^27
-            -0.382_683_43_f32,                // W_64^28
-            -0.290_284_66_f32,                // W_64^29
-            -0.195_090_32_f32,                // W_64^30
-            -0.098_017_14_f32,                // W_64^31
-        ],
-    );
+    // W_64^{16..31} = -i * W_64^{0..15}, so re_16_31 == im_0_15 and im_16_31 == -re_0_15. The
+    // 16..31 butterfly below derives them from the resident 0..15 twiddles instead of holding two
+    // more f32x16 vectors live across the loop.
 
     (reals.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
         .zip(imags.as_chunks_mut::<CHUNK_SIZE>().0.iter_mut())
@@ -950,10 +836,9 @@ fn fft_dit_chunk_64_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut [f
             let in0_im = f32x16::from_slice(simd, &imags_s0[16..32]);
             let in1_im = f32x16::from_slice(simd, &imags_s1[16..32]);
 
-            let out0_re =
-                twiddle_im_16_31.mul_add(-in1_im, twiddle_re_16_31.mul_add(in1_re, in0_re));
-            let out0_im =
-                twiddle_im_16_31.mul_add(in1_re, twiddle_re_16_31.mul_add(in1_im, in0_im));
+            // re_16_31 == im_0_15, im_16_31 == -re_0_15, with the sign folded into inputs.
+            let out0_re = twiddle_re_0_15.mul_add(in1_im, twiddle_im_0_15.mul_add(in1_re, in0_re));
+            let out0_im = twiddle_re_0_15.mul_add(-in1_re, twiddle_im_0_15.mul_add(in1_im, in0_im));
             let out1_re = two.mul_sub(in0_re, out0_re);
             let out1_im = two.mul_sub(in0_im, out0_im);
 
@@ -995,7 +880,7 @@ fn fft_dit_chunk_n_simd_f64<S: Simd>(
     assert!(chunk_size >= LANES * 2);
     let two = f64x8::splat(simd, 2.0);
 
-    // The structure of outer for loop with inner for_each is intentional: on x86
+    // The structure of outer for loop with inner `for_each` is intentional. On x86
     // fearless_simd needs inlining all the way down to intrinsics to work properly,
     // and using for_each in the outer scope would require a call to for_each function
     // that we can't force to be inlined. This brings over the LLVM inlining thresholds
@@ -1041,7 +926,7 @@ fn fft_dit_chunk_n_simd_f64<S: Simd>(
     }
 }
 
-/// General DIT butterfly for f32
+/// General DIT butterfly for `f32`
 #[inline(never)] // otherwise every kernel gets inlined into the parent
 pub fn fft_dit_chunk_n_f32<S: Simd>(
     simd: S,
@@ -1057,7 +942,7 @@ pub fn fft_dit_chunk_n_f32<S: Simd>(
     )
 }
 
-/// General DIT butterfly for f32
+/// General DIT butterfly for `f32`
 #[inline(always)] // required by fearless_simd
 fn fft_dit_chunk_n_simd_f32<S: Simd>(
     simd: S,
