@@ -268,7 +268,7 @@ pub fn fft_f64_dit_with_planner_and_opts(
     opts: &Options,
 ) {
     // Dynamic dispatch overhead becomes really noticeable at small FFT sizes.
-    // Dispatch only once at the top of the program to
+    // Dispatch only once at the top of the program to amortize the cost.
     dispatch!(planner.simd_level, simd => fft_f64_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
 }
 
@@ -289,11 +289,9 @@ fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
     assert_eq!(log_n, planner.log_n);
 
     // IFFT via swap trick: swap(IDFT(z)) = (1/N) * DFT(swap(z)), where
-    // swap(a + bi) = b + ai. Hand the caller's imag slice to the forward
-    // FFT as its "reals" arg (and vice versa); after the 1/N scale below,
-    // the slices already hold IDFT(z) in the caller's slots — saving a
-    // full conjugation pass over `imags`. After this rebind, `reals` and
-    // `imags` are positional names, not semantic.
+    // swap(z) = swap(a + bi) = b + ai.
+    // Hence, we hand the caller's imaginaries slice to the forward
+    // FFT as its "reals" arg (and vice versa).
     let (reals, imags) = match direction {
         Direction::Forward => (reals, imags),
         Direction::Inverse => (imags, reals),
@@ -351,6 +349,7 @@ pub fn fft_f32_dit_with_planner_and_opts(
     dispatch!(planner.simd_level, simd => fft_f32_dit_with_planner_and_opts_impl(simd, reals, imags, direction, planner, opts))
 }
 
+#[inline(always)] // required by fearless_simd
 fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
     simd: S,
     reals: &mut [f32],
@@ -405,7 +404,7 @@ fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
 }
 
 #[inline]
-fn power_of_two(power: usize) -> usize {
+const fn power_of_two(power: usize) -> usize {
     // 2.pow() requires a lot of ugly type annotations so here's a helper function
     debug_assert!(power < usize::BITS as usize);
     1 << power
