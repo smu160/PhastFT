@@ -24,7 +24,7 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 
 ## Limitations
 
-- The fastest path (`fft_*_dit`) requires a length of `2^n` (a power of 2). For arbitrary lengths, the `fft_*_bluestein` family computes the exact DFT via Bluestein's algorithm (chirp-z transform) — no zero-padding of the signal required, though it is slower than the power-of-2 path.
+- The fastest path (`fft_*_dit`) requires a power-of-2 length `2^n`. For arbitrary lengths, the `fft_*_bluestein` family computes the exact DFT via Bluestein's algorithm (chirp-z transform). No signal zero-padding is needed, though it is slower than the power-of-2 path.
 
 ## Planned features
 
@@ -56,7 +56,7 @@ the same three tiers and `Direction` semantics as `fft_*_dit`. A reusable
 ```rust,no_run
 use phastft::{fft_f64_bluestein, fft_f64_bluestein_with_planner, planner::{Direction, PlannerBluestein64}};
 
-let n = 1_000_003; // a large prime — no power-of-2 padding needed
+let n = 1_000_003; // a large prime, no power-of-2 padding needed
 let mut reals: Vec<f64> = (1..=n).map(|i| i as f64).collect();
 let mut imags: Vec<f64> = vec![0.0; n];
 
