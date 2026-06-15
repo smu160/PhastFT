@@ -1,22 +1,21 @@
 //! Bluestein's algorithm (chirp-z transform): the complex-to-complex DFT of an
-//! arbitrary length `N`, computed as a length-`M` circular convolution
-//! (`M = next_pow2(2N-1)`) using the existing power-of-2 DIT FFT.
+//! arbitrary length `N`, computed as a length-`M` circular convolution with
+//! `M = next_pow2(2N-1)`, run through the existing power-of-2 DIT FFT.
 //!
-//! Pipeline: pre-multiply the input by the chirp `c[n] = exp(-i*pi*n^2/N)` and
-//! zero-pad to `M`; forward FFT; pointwise-multiply by the planner's precomputed
-//! filter spectrum `B`; inverse FFT (its `1/M` is the convolution
-//! normalization); post-multiply by the chirp and keep the first `N` bins.
+//! Per call: pre-multiply the input by the chirp `c[n] = exp(-i*pi*n^2/N)` and
+//! zero-pad to `M`, forward FFT, pointwise-multiply by the planner's filter
+//! spectrum `B`, inverse FFT (its `1/M` is the convolution normalization),
+//! post-multiply by `c`, keep the first `N` bins.
 //!
-//! The inverse transform reuses the *same* precomputed `B` via the identity
-//! `IDFT(x) = (1/N)*conj(DFT(conj(x)))`: it conjugates the input in the
-//! pre-multiply and conjugates + scales by `1/N` in the post-multiply, both
-//! folded into the existing SIMD passes (no extra buffers, no extra planner
-//! memory).
+//! The inverse reuses the same `B` via `IDFT(x) = (1/N)*conj(DFT(conj(x)))`:
+//! conjugate the input in the pre-multiply, conjugate and scale by `1/N` in the
+//! post-multiply. Both fold into the SIMD passes, so the inverse needs no extra
+//! precompute.
 //!
-//! Native layout is split arrays (`&mut [T]` reals / imags). The top
+//! Native layout is split arrays (`&mut [T]` reals / imags). The
 //! `_with_planner_and_opts` tier performs zero allocations: the caller supplies
 //! two length-`M` scratch buffers (the C2R contract). `Options` there govern the
-//! inner size-`M` FFT — size them for `M` (= `planner.inner_fft_len()`), not `N`.
+//! inner size-`M` FFT, so size them for `M = planner.inner_fft_len()`, not `N`.
 
 use fearless_simd::{dispatch, f32x8, f64x4, Simd, SimdBase};
 
@@ -27,15 +26,14 @@ use crate::options::Options;
 use crate::planner::{Direction, PlannerBluestein32, PlannerBluestein64};
 
 // ---------------------------------------------------------------------------
-// SIMD passes — three elementwise complex-multiply kernels over split arrays.
-// Macro-generated per precision (the `impl_simd_untangle_inplace!` style in
-// r2c.rs): `#[inline(always)]`, run inside `simd.vectorize(...)`, with a scalar
-// remainder tail so small M (e.g. 2, 4) stay correct.
+// The SIMD passes, three elementwise complex-multiply kernels over split arrays,
+// are macro-generated per precision as in r2c.rs: `#[inline(always)]`, run inside
+// `simd.vectorize(...)`, with a scalar remainder tail so small `M` stays correct.
 // ---------------------------------------------------------------------------
 
-// Pre-multiply by chirp + zero-pad: a[k] = (re[k] + i*conj_sign*im[k]) * c[k]
-// for k < N; a[k] = 0 for N <= k < M. `conj_sign` is +1 (forward) or -1
-// (inverse, conjugating the input), applied to the input imaginary lane.
+// Pre-multiply by chirp, zero-pad: a[k] = (re[k] + i*conj_sign*im[k]) * c[k] for
+// k < N, and 0 for N <= k < M. `conj_sign` is +1 forward, -1 inverse (which
+// conjugates the input).
 macro_rules! impl_simd_bluestein_premul {
     ($name:ident, $T:ty, $V:ident, $lanes:expr) => {
         #[allow(clippy::too_many_arguments)]
@@ -79,7 +77,7 @@ macro_rules! impl_simd_bluestein_premul {
     };
 }
 
-// Pointwise multiply in place by the precomputed filter spectrum: A[k] *= B[k].
+// Pointwise multiply in place by the filter spectrum: A[k] *= B[k].
 macro_rules! impl_simd_bluestein_pointwise {
     ($name:ident, $T:ty, $V:ident, $lanes:expr) => {
         #[inline(always)] // required by fearless_simd
@@ -109,9 +107,9 @@ macro_rules! impl_simd_bluestein_pointwise {
     };
 }
 
-// Post-multiply by chirp + extract: out[k] = (scale_re, scale_im) .* (c[k]*conv[k])
-// for k < N. (scale_re, scale_im) = (1, 1) forward; (1/N, -1/N) inverse (the
-// -1/N folds in the output conjugation and the 1/N IDFT scaling).
+// Post-multiply by chirp, extract: out[k] = (scale_re, scale_im) .* (c[k]*conv[k])
+// for k < N. (scale_re, scale_im) is (1, 1) forward, (1/N, -1/N) inverse, where
+// -1/N carries both the output conjugation and the 1/N IDFT scaling.
 macro_rules! impl_simd_bluestein_postmul {
     ($name:ident, $T:ty, $V:ident, $lanes:expr) => {
         #[allow(clippy::too_many_arguments)]
@@ -158,12 +156,10 @@ macro_rules! impl_simd_bluestein_postmul {
     };
 }
 
-// Verified via `cargo asm` on aarch64/NEON: the three elementwise passes lower
-// to packed vector FP — `fmul.2d`/`fadd.2d`/`fsub.2d` over f64x4 (and
-// `fmul.4s`/`fadd.4s`/`fsub.4s` over f32x8); the x86-64/AVX2 build emits the
-// equivalent `vmulpd`/`vaddpd`/`vsubpd` packed forms. The scalar `d`/`s`-register
-// ops that remain are the loop remainder tails. These three linear passes are
-// therefore negligible next to the two O(M log M) inner FFTs.
+// `cargo asm` confirms the three passes lower to packed vector FP, NEON
+// `fmul.2d`/`fadd.2d`/`fsub.2d` over f64x4 (and the `.4s` forms over f32x8) and
+// AVX2 `vmulpd`/`vaddpd`/`vsubpd`, with only the remainder tails left scalar.
+// So these O(M) passes are negligible next to the two O(M log M) inner FFTs.
 impl_simd_bluestein_premul!(simd_bluestein_premul_f64, f64, f64x4, 4);
 impl_simd_bluestein_pointwise!(simd_bluestein_pointwise_f64, f64, f64x4, 4);
 impl_simd_bluestein_postmul!(simd_bluestein_postmul_f64, f64, f64x4, 4);
@@ -173,13 +169,12 @@ impl_simd_bluestein_pointwise!(simd_bluestein_pointwise_f32, f32, f32x8, 8);
 impl_simd_bluestein_postmul!(simd_bluestein_postmul_f32, f32, f32x8, 8);
 
 /// Bluestein FFT for `f64`, arbitrary length `N`, reusing a precomputed planner
-/// and caller-owned scratch — the zero-allocation hot path.
+/// and caller-owned scratch (the zero-allocation hot path).
 ///
-/// In-place over the caller's length-`N` `reals` / `imags`. `scratch_re` and
-/// `scratch_im` must each be length `M = planner.inner_fft_len()`; their entry
-/// contents are ignored and their exit contents are unspecified (reuse freely
-/// across calls). `opts` govern the inner size-`M` FFT, so a hand-built
-/// `Options` must be sized for `M`, not `N`.
+/// In-place over the length-`N` `reals` / `imags`. `scratch_re` and `scratch_im`
+/// must each be length `M = planner.inner_fft_len()`. Their contents on entry are
+/// ignored and on exit unspecified, so reuse them across calls. `opts` govern the
+/// inner size-`M` FFT, so a hand-built `Options` must be sized for `M`, not `N`.
 ///
 /// # Panics
 ///
@@ -230,10 +225,10 @@ pub fn fft_f64_bluestein_with_planner_and_opts(
         "scratch_im must have length inner_fft_len()"
     );
 
-    // Forward: a = x*c, output X = c*conv. Inverse: a = conj(x)*c, output
-    // (1/N)*conj(c*conv) — fold conj into the input imag sign and conj+scale
-    // into the output. The inner inverse FFT's 1/M is always the convolution
-    // normalization (independent of `direction`).
+    // Forward: a = x*c, output c*conv. Inverse: a = conj(x)*c, output
+    // (1/N)*conj(c*conv), where the input conj folds into the imag sign and the
+    // output conj and 1/N into the post-multiply. The inner inverse FFT's 1/M is
+    // the convolution normalization either way.
     let (conj_sign, scale_re, scale_im) = match direction {
         Direction::Forward => (1.0, 1.0, 1.0),
         Direction::Inverse => {
@@ -272,7 +267,7 @@ pub fn fft_f64_bluestein_with_planner_and_opts(
     });
 }
 
-/// Bluestein FFT for `f64` reusing a planner; allocates scratch and guesses
+/// Bluestein FFT for `f64` reusing a planner. Allocates scratch and guesses
 /// `Options` for the inner FFT.
 ///
 /// # Panics
@@ -298,8 +293,8 @@ pub fn fft_f64_bluestein_with_planner(
     );
 }
 
-/// Bluestein FFT for `f64`, arbitrary length — convenience wrapper that builds a
-/// planner automatically. For repeated transforms of the same size, reuse a
+/// Bluestein FFT for `f64`, arbitrary length, building a planner per call. For
+/// repeated transforms of the same size, reuse a
 /// [`PlannerBluestein64`] via [`fft_f64_bluestein_with_planner`].
 ///
 /// # Panics
@@ -326,9 +321,9 @@ pub fn fft_f64_bluestein(reals: &mut [f64], imags: &mut [f64], direction: Direct
 }
 
 /// Bluestein FFT for `f32`, arbitrary length `N`, reusing a precomputed planner
-/// and caller-owned scratch — the zero-allocation hot path.
+/// and caller-owned scratch (the zero-allocation hot path).
 ///
-/// Single-precision variant of [`fft_f64_bluestein_with_planner_and_opts`]; see
+/// Single-precision variant of [`fft_f64_bluestein_with_planner_and_opts`]. See
 /// that function for the scratch/`Options` contract. `scratch_re` / `scratch_im`
 /// must each be length `M = planner.inner_fft_len()`.
 ///
@@ -398,7 +393,7 @@ pub fn fft_f32_bluestein_with_planner_and_opts(
     });
 }
 
-/// Bluestein FFT for `f32` reusing a planner; allocates scratch and guesses
+/// Bluestein FFT for `f32` reusing a planner. Allocates scratch and guesses
 /// `Options` for the inner FFT.
 ///
 /// # Panics
@@ -424,8 +419,8 @@ pub fn fft_f32_bluestein_with_planner(
     );
 }
 
-/// Bluestein FFT for `f32`, arbitrary length — convenience wrapper that builds a
-/// planner automatically. Single-precision variant of [`fft_f64_bluestein`].
+/// Bluestein FFT for `f32`, arbitrary length, building a planner per call.
+/// Single-precision variant of [`fft_f64_bluestein`].
 ///
 /// # Panics
 ///
@@ -457,7 +452,7 @@ mod tests {
     }
 
     /// Reference DFT via rustfft. `inverse` selects the normalized (1/N) inverse,
-    /// matching PhastFT's convention; forward is unnormalized.
+    /// matching PhastFT's convention. Forward is unnormalized.
     fn rustfft_reference_f64(re: &[f64], im: &[f64], inverse: bool) -> (Vec<f64>, Vec<f64>) {
         use utilities::rustfft::num_complex::Complex;
         use utilities::rustfft::FftPlanner;
@@ -482,8 +477,8 @@ mod tests {
         )
     }
 
-    // Sizes: primes (worst case), composites, powers of two (Bluestein is
-    // general), and the small edge sizes that exercise the scalar SIMD tails.
+    // Sizes: primes (worst case), composites, powers of two, and small edge
+    // sizes that exercise the scalar SIMD tails.
     const SIZES: &[usize] = &[
         1, 2, 3, 5, 6, 7, 9, 10, 11, 12, 13, 17, 31, 64, 100, 127, 1000, 1024,
     ];

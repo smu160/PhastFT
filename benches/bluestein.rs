@@ -1,15 +1,9 @@
 //! PhastFT Bluestein vs rustfft Bluestein at a matched power-of-2 inner size.
 //!
-//! rustfft's `BluesteinsAlgorithm` accepts any inner `M >= 2N-1`; to compare
-//! implementation-to-implementation we give it the SAME `M = next_pow2(2N-1)`
-//! PhastFT is constrained to (read from `planner.inner_fft_len()` /
-//! recomputed identically here), holding the convolution size constant.
+//! rustfft's `BluesteinsAlgorithm` accepts any inner `M >= 2N-1`. We give it the
+//! same `M = next_pow2(2N-1)` PhastFT is constrained to, so the convolution size
+//! is fixed across both implementations.
 //!
-//! Both sides pre-allocate scratch outside the timing loop and reuse it
-//! (`iter_batched` regenerates only the input signal per sample), so no
-//! allocation is measured. Compile-verify with `cargo bench --bench bluestein
-//! --no-run`; measurement runs are user-initiated.
-
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_traits::Zero;
 use phastft::options::Options;

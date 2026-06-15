@@ -39,7 +39,7 @@ pub const BIT_REVERSAL_LENGTHS: &[usize] =
 pub const PLANNER_MODE_LENGTHS: &[usize] = &[5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
 /// Non-power-of-2 sizes for the Bluestein comparison: primes just below powers
-/// of two (worst case — M jumps to the next pow2), plus two "just above pow2"
+/// of two (worst case, M jumps to the next pow2), plus two "just above pow2"
 /// sizes where M is maximal. Raw lengths (not log2).
 pub const BLUESTEIN_LENGTHS: &[usize] = &[
     31, 127, 251, 509, 1021, 1025, 2039, 4093, 4097, 8191, 16381, 32749, 65521, 131071,

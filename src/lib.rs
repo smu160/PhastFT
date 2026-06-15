@@ -149,11 +149,11 @@ impl_fft_interleaved!(
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_bluestein_interleaved_with_opts {
     ($func_name:ident, $precision:ty, $planar_func:ident, $deinterleaving_func:ident, $planner:ty) => {
-        /// Bluestein FFT — interleaved [`Complex`] entry point, full-control tier.
+        /// Interleaved [`Complex`] Bluestein FFT, full-control tier.
         ///
-        /// Deinterleaves into split arrays, runs the planar Bluestein FFT, and
-        /// re-interleaves. Allocates (deinterleave + length-`M` scratch) by
-        /// design — for the zero-allocation path use the split-array
+        /// Deinterleaves into split arrays, runs the planar Bluestein FFT, then
+        /// re-interleaves. This allocates (deinterleave plus length-`M` scratch).
+        /// For the zero-allocation path use the split-array
         #[doc = concat!("`", stringify!($planar_func), "` directly.")]
         ///
         /// # Panics
@@ -186,8 +186,8 @@ macro_rules! impl_bluestein_interleaved_with_opts {
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_bluestein_interleaved_with_planner {
     ($func_name:ident, $precision:ty, $with_opts_func:ident, $planner:ty) => {
-        /// Bluestein FFT — interleaved [`Complex`] entry point, reusing a planner;
-        /// `Options` are guessed for the inner FFT.
+        /// Interleaved [`Complex`] Bluestein FFT, reusing a planner. `Options`
+        /// are guessed for the inner FFT.
         ///
         /// # Panics
         ///
@@ -206,8 +206,8 @@ macro_rules! impl_bluestein_interleaved_with_planner {
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_bluestein_interleaved {
     ($func_name:ident, $precision:ty, $with_planner_func:ident, $planner:ty) => {
-        /// Bluestein FFT — interleaved [`Complex`] entry point that builds a
-        /// planner automatically.
+        /// Interleaved [`Complex`] Bluestein FFT that builds a planner
+        /// automatically.
         ///
         /// # Panics
         ///
