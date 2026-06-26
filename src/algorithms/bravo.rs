@@ -23,56 +23,6 @@ const TILE_SIDE_F64: usize = 32; // 32² × 8 = 8 KB
 // With fewer tiles the staging overhead dominates.
 const MIN_TILES: usize = 16;
 
-/// Borrowed-slice adapter for `DisjointMut`.
-///
-/// `DisjointMut` needs to own its container metadata, so this stores the caller's
-/// slice pointer and length while keeping the borrow lifetime attached.
-#[cfg(feature = "parallel")]
-struct BorrowedSlice<'a, T: Copy> {
-    ptr: *mut T,
-    len: usize,
-    _marker: core::marker::PhantomData<&'a mut [T]>,
-}
-
-#[cfg(feature = "parallel")]
-impl<'a, T: Copy> BorrowedSlice<'a, T> {
-    fn new(slice: &'a mut [T]) -> Self {
-        Self {
-            ptr: slice.as_mut_ptr(),
-            len: slice.len(),
-            _marker: core::marker::PhantomData,
-        }
-    }
-}
-
-#[cfg(feature = "parallel")]
-#[allow(unsafe_code)]
-unsafe impl<T: Copy + Send> Send for BorrowedSlice<'_, T> {}
-
-#[cfg(feature = "parallel")]
-#[allow(unsafe_code)]
-unsafe impl<T: Copy + Sync> Sync for BorrowedSlice<'_, T> {}
-
-#[cfg(feature = "parallel")]
-#[allow(unsafe_code)]
-unsafe impl<T: Copy> rav1d_disjoint_mut::ExternalAsMutPtr for BorrowedSlice<'_, T> {
-    type Target = T;
-
-    unsafe fn as_mut_ptr(ptr: *mut Self) -> *mut Self::Target {
-        unsafe { core::ptr::addr_of!((*ptr).ptr).read() }
-    }
-
-    unsafe fn as_mut_slice(ptr: *mut Self) -> *mut [Self::Target] {
-        let data = unsafe { core::ptr::addr_of!((*ptr).ptr).read() };
-        let len = unsafe { core::ptr::addr_of!((*ptr).len).read() };
-        core::ptr::slice_from_raw_parts_mut(data, len)
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
 /// Copy TILE_SIDE strips from `data` into `buf`.
 ///
 /// Tile layout: strip `u` of tile `tile` is `data_chunks[u * strip_stride + tile]`,
@@ -285,7 +235,7 @@ macro_rules! impl_bit_rev_bravo {
             let num_tiles = 1usize << tile_bits;
 
             let (data_tiles, _) = data.as_chunks_mut::<TILE_SIDE>();
-            let data_tiles = DisjointMut::new(BorrowedSlice::new(data_tiles));
+            let data_tiles = DisjointMut::new(data_tiles);
 
             // Each (tile, tile_rev) pair accesses disjoint strips of data.
             // The tile loop skips tile > tile_rev, so each strip index appears

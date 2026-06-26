@@ -828,8 +828,7 @@ dependencies = [
 [[package]]
 name = "rav1d-disjoint-mut"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d5f921332331631dd8716a93d81aef9ac21245da74af62bc14000a4fd7fdbfd"
+source = "git+https://github.com/imazen/rav1d-safe.git#e6026310c43f2cfebdb9f33da631e366e09442cf"
 
 [[package]]
 name = "rawpointer"

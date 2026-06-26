@@ -18,7 +18,7 @@ num-complex = { version = "0.4.6", features = ["bytemuck"], optional = true }
 bytemuck = { version = "1.23.2", optional = true }
 rayon = { version = "1.11.0", optional = true }
 fearless_simd = "0.4.0"
-rav1d-disjoint-mut = { version = "0.3.1", optional = true }
+rav1d-disjoint-mut = { git = "https://github.com/imazen/rav1d-safe.git", optional = true }
 
 [features]
 default = []
