@@ -13,7 +13,7 @@ use fearless_simd::{
 /// all 4 butterfly stages execute in registers with no intermediate memory traffic,
 /// then results are stored back.
 ///
-/// The limiting factor is register pressure: we cannot fuse more stages on AVX2 or NEON.
+/// The limiting factor is register pressure, as we cannot fuse more stages on AVX2 or NEON.
 /// Trying to do so incurs haphazard loads/stores from the stack and ends up being slower
 /// than running orderly single-stage passes that load/store predictably.
 #[inline(never)]
@@ -41,6 +41,8 @@ fn fft_dit_codelet_16_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut 
             }};
         }
 
+        // TODO: this is not truly a radix4 transpose as we don't use radix-4, yet
+        // rename it later on
         macro_rules! radix4_transpose {
             ($va_re:expr, $vb_re:expr, $vc_re:expr, $vd_re:expr,
              $va_im:expr, $vb_im:expr, $vc_im:expr, $vd_im:expr) => {{
@@ -182,7 +184,7 @@ fn fft_dit_codelet_16_simd_f64<S: Simd>(simd: S, reals: &mut [f64], imags: &mut 
             butterfly!(v1_re, v1_im, v3_re, v3_im, tw_hi_re, tw_hi_im);
         }
 
-        // ---- Store all vectors back ----
+        // Store all vectors back
         v0_re.store_slice(&mut re[0..4]);
         v1_re.store_slice(&mut re[4..8]);
         v2_re.store_slice(&mut re[8..12]);
@@ -281,7 +283,7 @@ fn fft_dit_codelet_32_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut 
                 }};
             }
 
-            // Process lo halves (elements 0-3) — result in transposed layout
+            // Process lo halves (elements 0-3)
             let (g0_lo_re, g0_hi_re) = v0_re.split();
             let (g1_lo_re, g1_hi_re) = v1_re.split();
             let (g2_lo_re, g2_hi_re) = v2_re.split();
@@ -295,14 +297,14 @@ fn fft_dit_codelet_32_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut 
                 g0_lo_re, g1_lo_re, g2_lo_re, g3_lo_re, g0_lo_im, g1_lo_im, g2_lo_im, g3_lo_im
             );
 
-            // Process hi halves (elements 4-7) — result in transposed layout
+            // Process hi halves (elements 4-7)
             let (p4_re, p5_re, p6_re, p7_re, p4_im, p5_im, p6_im, p7_im) = radix4_transpose_fwd!(
                 g0_hi_re, g1_hi_re, g2_hi_re, g3_hi_re, g0_hi_im, g1_hi_im, g2_hi_im, g3_hi_im
             );
 
-            // Stage 2 (dist=4) — W8^k twiddles, already in per-element layout
+            // Stage 2 (dist=4): W8^k twiddles, already in per-element layout
 
-            // W8^0 = 1+0j: just add/sub
+            // W8^0 = 1+0j is just just add/sub
             let r0_re = p0_re + p4_re;
             let r4_re = p0_re - p4_re;
             let r0_im = p0_im + p4_im;
@@ -326,7 +328,7 @@ fn fft_dit_codelet_32_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut 
             let r2_im = p2_im - p6_re;
             let r6_im = p2_im + p6_re;
 
-            // W8^3 = (-1-j)/√2: twiddle * p7, expressed to avoid double-negation.
+            // W8^3 = (-1-j)/√2, is twiddle * p7, expressed to avoid double-negation.
             // tw = (-s, -s) where s = 1/√2.
             // tw*p7_re = s*p7_im - s*p7_re  (fmsub, clean)
             // tw*p7_im = -(s*p7_im + s*p7_re), but we compute the positive form
@@ -470,7 +472,7 @@ fn fft_dit_codelet_32_simd_f32<S: Simd>(simd: S, reals: &mut [f32], imags: &mut 
             butterfly!(v1_re, v1_im, v3_re, v3_im, tw_hi_re, tw_hi_im);
         }
 
-        // ---- Store all vectors back ----
+        // Store all vectors back
         v0_re.store_slice(&mut re[0..8]);
         v1_re.store_slice(&mut re[8..16]);
         v2_re.store_slice(&mut re[16..24]);
