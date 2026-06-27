@@ -24,11 +24,11 @@ Designed for large FFTs (gigabytes of data) common in scientific workloads, e.g.
 
 ## Limitations
 
-- Only supports input with a length of `2^n` (i.e., a power of 2) -- if possible, input should be padded with zeros to the next power of 2
+- The fastest path (`fft_*_dit`) requires a power-of-2 length `2^n`. For arbitrary lengths, the `fft_*_bluestein` family computes the exact DFT via Bluestein's algorithm (chirp-z transform). No signal zero-padding is needed, though it is slower than the power-of-2 path.
 
 ## Planned features
 
-- Additional algorithms for non-power-of-2 FFTs
+- A real-input (R2C-style) Bluestein path, and a smart entry point that auto-selects the power-of-2 or Bluestein transform by size
 - Even more work on performance
 
 ## Quickstart
@@ -45,6 +45,27 @@ fft_f64_dit(&mut reals, &mut imags, Direction::Forward);
 // Or with a reusable planner for better performance with multiple FFTs
 let planner = PlannerDit64::new(big_n);
 fft_f64_dit_with_planner(&mut reals, &mut imags, Direction::Forward, &planner);
+```
+
+#### Arbitrary-Size FFT (Bluestein)
+
+For lengths that are not a power of two, use the `fft_*_bluestein` family. It has
+the same three tiers and `Direction` semantics as `fft_*_dit`. A reusable
+`PlannerBluestein64` amortizes the chirp table and filter precompute.
+
+```rust,no_run
+use phastft::{fft_f64_bluestein, fft_f64_bluestein_with_planner, planner::{Direction, PlannerBluestein64}};
+
+let n = 1_000_003; // a large prime, no power-of-2 padding needed
+let mut reals: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+let mut imags: Vec<f64> = vec![0.0; n];
+
+// Simple API
+fft_f64_bluestein(&mut reals, &mut imags, Direction::Forward);
+
+// Or reuse a planner across many transforms of the same size
+let planner = PlannerBluestein64::new(n);
+fft_f64_bluestein_with_planner(&mut reals, &mut imags, Direction::Inverse, &planner);
 ```
 
 #### Complex Number Support (Interleaved Format)

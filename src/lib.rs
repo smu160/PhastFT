@@ -16,6 +16,8 @@ use num_complex::Complex;
 use crate::complex_nums::{combine_re_im, deinterleave_complex32, deinterleave_complex64};
 use crate::options::Options;
 use crate::planner::{Direction, PlannerDit32, PlannerDit64};
+#[cfg(feature = "complex-nums")]
+use crate::planner::{PlannerBluestein32, PlannerBluestein64};
 
 #[cfg(not(feature = "bench-internals"))]
 mod algorithms;
@@ -30,6 +32,10 @@ pub mod options;
 mod parallel;
 pub mod planner;
 
+pub use algorithms::bluestein::{
+    fft_f32_bluestein, fft_f32_bluestein_with_planner, fft_f32_bluestein_with_planner_and_opts,
+    fft_f64_bluestein, fft_f64_bluestein_with_planner, fft_f64_bluestein_with_planner_and_opts,
+};
 pub use algorithms::dit::{fft_f32_dit_with_planner_and_opts, fft_f64_dit_with_planner_and_opts};
 pub use algorithms::r2c::{
     c2r_fft_f32, c2r_fft_f32_with_planner, c2r_fft_f32_with_planner_and_opts, c2r_fft_f64,
@@ -138,6 +144,126 @@ impl_fft_interleaved!(
     f64,
     fft_f64_dit_interleaved_with_planner,
     PlannerDit64
+);
+
+#[cfg(feature = "complex-nums")]
+macro_rules! impl_bluestein_interleaved_with_opts {
+    ($func_name:ident, $precision:ty, $planar_func:ident, $deinterleaving_func:ident, $planner:ty) => {
+        /// Interleaved [`Complex`] Bluestein FFT, full-control tier.
+        ///
+        /// Deinterleaves into split arrays, runs the planar Bluestein FFT, then
+        /// re-interleaves. This allocates (deinterleave plus length-`M` scratch).
+        /// For the zero-allocation path use the split-array
+        #[doc = concat!("`", stringify!($planar_func), "` directly.")]
+        ///
+        /// # Panics
+        ///
+        /// Panics if `signal.len()` does not match the planner size `N`.
+        pub fn $func_name(
+            signal: &mut [Complex<$precision>],
+            direction: Direction,
+            planner: &$planner,
+            opts: &Options,
+        ) {
+            let (mut reals, mut imags) = $deinterleaving_func(signal);
+            let m = planner.inner_fft_len();
+            let mut scratch_re: Vec<$precision> = vec![0.0; m];
+            let mut scratch_im: Vec<$precision> = vec![0.0; m];
+            $planar_func(
+                &mut reals,
+                &mut imags,
+                direction,
+                planner,
+                opts,
+                &mut scratch_re,
+                &mut scratch_im,
+            );
+            signal.copy_from_slice(&combine_re_im(&reals, &imags));
+        }
+    };
+}
+
+#[cfg(feature = "complex-nums")]
+macro_rules! impl_bluestein_interleaved_with_planner {
+    ($func_name:ident, $precision:ty, $with_opts_func:ident, $planner:ty) => {
+        /// Interleaved [`Complex`] Bluestein FFT, reusing a planner. `Options`
+        /// are guessed for the inner FFT.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `signal.len()` does not match the planner size `N`.
+        pub fn $func_name(
+            signal: &mut [Complex<$precision>],
+            direction: Direction,
+            planner: &$planner,
+        ) {
+            let opts = Options::guess_options(planner.inner_fft_len());
+            $with_opts_func(signal, direction, planner, &opts);
+        }
+    };
+}
+
+#[cfg(feature = "complex-nums")]
+macro_rules! impl_bluestein_interleaved {
+    ($func_name:ident, $precision:ty, $with_planner_func:ident, $planner:ty) => {
+        /// Interleaved [`Complex`] Bluestein FFT that builds a planner
+        /// automatically.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `signal` is empty.
+        pub fn $func_name(signal: &mut [Complex<$precision>], direction: Direction) {
+            let planner = <$planner>::new(signal.len());
+            $with_planner_func(signal, direction, &planner);
+        }
+    };
+}
+
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved_with_opts!(
+    fft_f64_bluestein_interleaved_with_planner_and_opts,
+    f64,
+    fft_f64_bluestein_with_planner_and_opts,
+    deinterleave_complex64,
+    PlannerBluestein64
+);
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved_with_opts!(
+    fft_f32_bluestein_interleaved_with_planner_and_opts,
+    f32,
+    fft_f32_bluestein_with_planner_and_opts,
+    deinterleave_complex32,
+    PlannerBluestein32
+);
+
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved_with_planner!(
+    fft_f64_bluestein_interleaved_with_planner,
+    f64,
+    fft_f64_bluestein_interleaved_with_planner_and_opts,
+    PlannerBluestein64
+);
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved_with_planner!(
+    fft_f32_bluestein_interleaved_with_planner,
+    f32,
+    fft_f32_bluestein_interleaved_with_planner_and_opts,
+    PlannerBluestein32
+);
+
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved!(
+    fft_f64_bluestein_interleaved,
+    f64,
+    fft_f64_bluestein_interleaved_with_planner,
+    PlannerBluestein64
+);
+#[cfg(feature = "complex-nums")]
+impl_bluestein_interleaved!(
+    fft_f32_bluestein_interleaved,
+    f32,
+    fft_f32_bluestein_interleaved_with_planner,
+    PlannerBluestein32
 );
 
 /// FFT using the Decimation-In-Time (DIT) algorithm for `f64`, reusing a
@@ -390,6 +516,30 @@ mod tests {
                 assert_float_closeness(z.re, z_re, 1e-10);
                 assert_float_closeness(z.im, z_im, 1e-10);
             });
+    }
+
+    #[cfg(feature = "complex-nums")]
+    #[test]
+    fn bluestein_interleaved_matches_planar() {
+        use utilities::assert_float_closeness;
+
+        for &n in &[3usize, 5, 7, 17, 100, 127] {
+            // Planar reference.
+            let mut planar_re: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+            let mut planar_im: Vec<f64> = (1..=n).map(|i| i as f64 * 0.5).collect();
+            fft_f64_bluestein(&mut planar_re, &mut planar_im, Direction::Forward);
+
+            // Interleaved.
+            let mut signal: Vec<Complex<f64>> = (1..=n)
+                .map(|i| Complex::new(i as f64, i as f64 * 0.5))
+                .collect();
+            fft_f64_bluestein_interleaved(&mut signal, Direction::Forward);
+
+            for k in 0..n {
+                assert_float_closeness(signal[k].re, planar_re[k], 1e-9);
+                assert_float_closeness(signal[k].im, planar_im[k], 1e-9);
+            }
+        }
     }
 
     #[test]
