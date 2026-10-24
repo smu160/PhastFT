@@ -35,6 +35,7 @@ cargo bench --all-features                 # every target
 | `fftw_conserve` | (none)             | Same sizes through FFTW with `FFTW_MEASURE \| FFTW_CONSERVE_MEMORY` — the apples-to-apples comparison for PhastFT's low-memory design.                                                                    |
 | `realfft`       | (none)             | PhastFT R2C/C2R (`r2c_fft_*`, `c2r_fft_*`) vs. the `realfft` crate — forward + inverse, f32 + f64.                                                                                                        |
 | `planner`       | (none)             | Planner construction cost (`PlannerDit{32,64}::new` vs. RustFFT's `FftPlanner::plan_fft_forward`).                                                                                                        |
+| `twiddle_modes` | (none)             | Explicit `Precomputed` vs. `LowMemory` plans: complex and real transforms, both directions and precisions, serial and default threading. |
 | `interleave`    | `complex-nums`     | Internal SIMD interleave / deinterleave kernels.                                                                                                                                                          |
 | `bit_reversal`  | `bench-internals`  | Five bit-reversal kernels head-to-head — CO-BRAVO, BRAVO, COBRA, Elaan, Naive ([`BIT_REVERSAL.md`](BIT_REVERSAL.md)).                                                                                     |
 
@@ -59,6 +60,75 @@ to isolate. Its groups (`r2c_f{32,64}`, `c2r_f{32,64}`) are distinct
 from the C2C groups, so no cross-binary aggregation is needed. R2C is
 forward by definition and C2R is inverse by definition — direction is
 implicit in the prefix.
+
+### Transform timing and repeatability
+
+Benchmarks allocate fresh inputs for every transform.
+The shared generators use a fixed seed: values repeat for a given precision
+and length on the same target with the locked `rand` version, and
+split/interleaved layouts contain the same values. `SmallRng` does not promise
+identical streams across platforms or dependency upgrades. Fresh allocation
+does **not** imply cold-cache execution.
+
+Transform groups collect 20 samples using Criterion's `Flat` sampling mode.
+Every sample performs the same number of iterations. Batch size is independent
+of that count: `clamp(1 MiB / input_bytes, 1, 256)`. The budget counts both split
+arrays or the corresponding interleaved array; real inputs and half-spectra use
+their actual lengths. It excludes plans, scratch, output buffers, and temporary
+setup allocations. Inputs larger than 1 MiB use a batch of one. Criterion may
+finish a sample with a partial batch, identical across samples in flat mode.
+
+`iter_batched_ref` keeps input generation, allocation, and destruction outside
+timing. Planning and reusable scratch/output allocation remain outside timing;
+allocations performed internally by an FFT API remain part of its execution.
+The timed region measures the FFT and output black-boxing, plus Criterion's
+batch traversal overhead. Planner and internal-kernel timing policies are
+unchanged (their shared input generators are also seeded).
+
+### Twiddle storage modes
+
+`twiddle_modes` compares the two explicit modes with identical seeded inputs.
+Planning, input generation, allocation, and destruction are outside the timed
+region. C2R scratch is allocated once and reused. The `serial` groups disable
+both FFT and bit-reversal parallelism; `parallel` groups use the default options
+and Rayon pool and are omitted when the `parallel` feature is disabled.
+`Auto` is resolved during planning and runs exactly one of these two paths.
+
+A short sweep around the crossover:
+
+```bash
+cargo bench --bench twiddle_modes -- \
+  'twiddles_f(32|64)_forward_(serial|parallel)/.*/(1048576|2097152|4194304|16777216)$' \
+  --warm-up-time 0.1 --measurement-time 0.3 --noplot
+```
+
+Use `twiddles_real_.*` to select R2C/C2R, or `inverse` in place of `forward` for
+complex inverse transforms. The full sweep covers `2^6` through `2^24`. Large
+transforms automatically extend measurement time to collect the 20 samples;
+repeat runs and use longer warm-up/measurement windows for tuning a specific
+machine. This benchmark uses the standard fresh-allocation policy, which does
+not guarantee cold caches.
+
+The initial `Auto` cutoff is a **32 MiB complex input footprint**: `2^22` points
+for f32 or `2^21` for f64. Real plans use the half-length complex FFT's footprint
+and apply the resolved mode to the inner FFT and the real twiddles together.
+The cutoff is a fixed heuristic, not runtime cache detection or autotuning.
+
+Representative forward medians from a short sweep on an AMD Ryzen 9 9950X,
+16-core Rayon pool, Rust 1.99.1, release profile (milliseconds):
+
+| Precision / complex points | Serial stored | Serial low memory | Default threading stored | Default threading low memory |
+| --- | ---: | ---: | ---: | ---: |
+| f32 / `2^22` | 9.70 | 9.22 | 4.40 | 3.21 |
+| f32 / `2^24` | 48.66 | 47.09 | 29.63 | 24.70 |
+| f64 / `2^21` | 9.35 | 8.58 | 3.70 | 3.28 |
+| f64 / `2^24` | 99.86 | 99.16 | 69.11 | 59.49 |
+
+Below the cutoff, compact generation can cost more than it saves in memory
+traffic. Above it, benefits vary with threading, precision, and cache behavior;
+an explicit mode remains useful for workload-specific tuning. Retune the named
+`AUTO_LOW_MEMORY_BYTES` constant in `src/planner.rs` when broader hardware
+measurements justify a change.
 
 ### Cross-binary overlay plots
 

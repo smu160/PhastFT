@@ -13,12 +13,14 @@
 #![allow(dead_code)]
 
 use criterion::measurement::WallTime;
-use criterion::{BenchmarkGroup, Criterion, PlotConfiguration, Throughput};
+use criterion::{
+    BatchSize, BenchmarkGroup, Criterion, PlotConfiguration, SamplingMode, Throughput,
+};
 use num_traits::Float;
 use rand::distr::StandardUniform;
 use rand::prelude::Distribution;
 use rand::rngs::SmallRng;
-use rand::RngExt;
+use rand::{RngExt, SeedableRng};
 use utilities::rustfft::num_complex::Complex;
 
 /// Default power-of-2 size sweep (log2). Every cross-library and
@@ -87,6 +89,36 @@ pub fn bench_at_sizes<F>(
     group.finish();
 }
 
+/// Fixed seed shared by every input layout. Each fresh allocation receives the
+/// same values for its precision and length on the same target with the locked
+/// rand version. This also makes split and interleaved library inputs equivalent.
+const INPUT_SEED: u64 = 0x5048_4153_5446_5401;
+
+/// Fixed number of fresh inputs per batch, independent of Criterion's sample
+/// iteration count. The budget covers retained inputs only, not setup
+/// temporaries, outputs, scratch, or plans. One oversized input is still allowed.
+pub fn transform_batch_size(input_bytes: usize) -> BatchSize {
+    assert!(input_bytes > 0, "transform inputs must not be empty");
+    BatchSize::NumIterations(((1 << 20) / input_bytes).clamp(1, 256) as u64)
+}
+
+/// Transform-only sampling policy. Keep each sample's iteration count constant;
+/// planner and internal-kernel benchmarks retain their existing sampling mode.
+pub fn bench_transforms_at_sizes<F>(
+    c: &mut Criterion,
+    group_name: &str,
+    lengths: &[usize],
+    throughput: impl Fn(usize) -> Throughput,
+    mut bench_at_size: F,
+) where
+    F: FnMut(&mut BenchmarkGroup<'_, WallTime>, usize),
+{
+    bench_at_sizes(c, group_name, lengths, throughput, |group, len| {
+        group.sampling_mode(SamplingMode::Flat);
+        bench_at_size(group, len);
+    });
+}
+
 /// Throughput for an N-element complex signal (split or interleaved):
 /// `N` elements, `2 * N * size_of::<T>()` bytes.
 pub fn throughput_complex<T>(len: usize) -> Throughput {
@@ -114,7 +146,7 @@ pub fn split_complex<T: Float>(n: usize) -> (Vec<T>, Vec<T>)
 where
     StandardUniform: Distribution<T>,
 {
-    let mut rng = rand::make_rng::<SmallRng>();
+    let mut rng = SmallRng::seed_from_u64(INPUT_SEED);
     let samples: Vec<T> = (&mut rng)
         .sample_iter(StandardUniform)
         .take(2 * n)
@@ -140,7 +172,7 @@ pub fn interleaved_complex<T: Float>(n: usize) -> Vec<Complex<T>>
 where
     StandardUniform: Distribution<T>,
 {
-    let mut rng = rand::make_rng::<SmallRng>();
+    let mut rng = SmallRng::seed_from_u64(INPUT_SEED);
     let samples: Vec<T> = (&mut rng)
         .sample_iter(StandardUniform)
         .take(2 * n)
@@ -160,7 +192,7 @@ pub fn real_signal<T: Float>(n: usize) -> Vec<T>
 where
     StandardUniform: Distribution<T>,
 {
-    let mut rng = rand::make_rng::<SmallRng>();
+    let mut rng = SmallRng::seed_from_u64(INPUT_SEED);
     (&mut rng).sample_iter(StandardUniform).take(n).collect()
 }
 
@@ -176,7 +208,7 @@ where
     StandardUniform: Distribution<T>,
 {
     let len = n_real / 2 + 1;
-    let mut rng = rand::make_rng::<SmallRng>();
+    let mut rng = SmallRng::seed_from_u64(INPUT_SEED);
     let samples: Vec<T> = (&mut rng)
         .sample_iter(StandardUniform)
         .take(2 * len)
@@ -203,7 +235,7 @@ where
     StandardUniform: Distribution<T>,
 {
     let len = n_real / 2 + 1;
-    let mut rng = rand::make_rng::<SmallRng>();
+    let mut rng = SmallRng::seed_from_u64(INPUT_SEED);
     let samples: Vec<T> = (&mut rng)
         .sample_iter(StandardUniform)
         .take(2 * len)
