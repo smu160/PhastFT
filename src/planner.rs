@@ -1,210 +1,310 @@
 //! The planner module provides a convenient interface for planning and executing
-//! a Fast Fourier Transform (FFT). Currently, the planner is responsible for
-//! pre-computing twiddle factors based on the input signal length, as well as the
-//! direction of the FFT.
+//! a Fast Fourier Transform (FFT). Plans cache twiddle factors and SIMD
+//! detection, and can be reused in either transform direction.
 
-/// Reverse is for running the Inverse Fast Fourier Transform (IFFT)
+use crate::twiddles::{StoredTwiddles, TwiddleTable32, TwiddleTable64};
+
+/// Inverse is for running the Inverse Fast Fourier Transform (IFFT)
 /// Forward is for running the regular FFT
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     /// Leave the exponent term in the twiddle factor alone
     Forward = 1,
     /// Multiply the exponent term in the twiddle factor by -1
-    Reverse = -1,
+    Inverse = -1,
 }
 
-/// Controls how the planner selects algorithm variants.
+/// How a plan stores and produces twiddle factors.
 ///
-/// The planner can choose between different internal strategies (e.g., whether to
-/// use the fused 32-point codelet). `Heuristic` uses a conservative static rule
-/// with zero planning overhead. `Tune` benchmarks both paths at plan time and
-/// picks whichever is faster, at the cost of additional planning time.
-#[derive(Copy, Clone, Debug, Default)]
-pub enum PlannerMode {
-    /// Use a conservative static heuristic. Zero overhead at plan time.
+/// This is a planning choice, independent of execution/threading options.
+/// Both explicit modes support all transform sizes and directions.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TwiddleMode {
+    /// Store all general-stage twiddles: O(N) plan storage and vector loads
+    /// during execution.
+    Precomputed,
+    /// Store compact factor tables: O(log N) plan storage, generating twiddle
+    /// vectors from independent anchors during execution. No long recurrence
+    /// is used, so rounding error does not accumulate along a stage.
+    LowMemory,
+    /// Choose a mode once at plan construction using a size heuristic.
+    /// Currently selects `LowMemory` when the complex input occupies at least
+    /// 32 MiB (`2^22` complex points for f32, `2^21` for f64). Real plans use
+    /// their half-length complex FFT, so their point thresholds are doubled.
+    /// The heuristic may change in future releases; select an explicit mode
+    /// to override it. This is the default used by each planner's `new` constructor.
     #[default]
-    Heuristic,
-    /// Benchmark both paths at plan time, pick whichever is faster.
-    /// Adds planning overhead proportional to FFT size.
-    Tune,
+    Auto,
+}
+
+// Complex input footprint, also approximately the full DIT twiddle footprint.
+// A conservative crossover from the Ryzen 9950X serial/parallel sweeps; see
+// benches/README.md for measurements and the command to retune it.
+const AUTO_LOW_MEMORY_BYTES: usize = 32 << 20;
+
+impl TwiddleMode {
+    fn uses_low_memory<T>(self, num_points: usize) -> bool {
+        match self {
+            Self::Precomputed => false,
+            Self::LowMemory => true,
+            Self::Auto => num_points >= AUTO_LOW_MEMORY_BYTES / (2 * size_of::<T>()),
+        }
+    }
+}
+
+/// Store the mode once for the whole plan, including fused stage pairs.
+#[derive(Clone)]
+pub(crate) enum PlanTwiddles<T, Compact> {
+    Precomputed(Vec<StoredTwiddles<T>>),
+    LowMemory(Vec<Compact>),
+}
+
+impl<T, Compact> PlanTwiddles<T, Compact> {
+    fn mode(&self) -> TwiddleMode {
+        match self {
+            Self::Precomputed(_) => TwiddleMode::Precomputed,
+            Self::LowMemory(_) => TwiddleMode::LowMemory,
+        }
+    }
 }
 
 macro_rules! impl_planner_dit_for {
-    ($struct_name:ident, $precision:ident, $fft_func:path) => {
-        /// DIT-specific planner that pre-computes twiddles for all stages
+    ($struct_name:ident, $precision:ty, $twiddles:ident) => {
+        /// DIT-specific planner with selectable twiddle storage.
+        ///
+        /// The planner is direction-agnostic. Namely, the same instance can drive both forward and
+        /// inverse transforms. Direction is supplied per-call to the `fft_*_dit*` functions.
+        #[derive(Clone)]
         pub struct $struct_name {
-            /// Twiddles for each stage that needs them (stages with chunk_size > 64)
-            /// Each element contains (twiddles_re, twiddles_im) for that stage
-            pub(crate) stage_twiddles: Vec<(Vec<$precision>, Vec<$precision>)>,
-            /// The direction of the FFT
-            pub(crate) direction: Direction,
+            /// Twiddle sources for stages with chunk_size > 64.
+            pub(crate) stage_twiddles: PlanTwiddles<$precision, $twiddles>,
             /// The log2 of the FFT size
             pub(crate) log_n: usize,
             /// The level of SIMD instruction support, detected at runtime on x86 and hardcoded elsewhere
             pub(crate) simd_level: fearless_simd::Level,
-            /// Whether to use the fused 32-point codelet for stages 0-4 in L1 blocks
-            pub(crate) use_codelet_32: bool,
         }
 
         impl $struct_name {
             /// Create a DIT planner for an FFT of size `num_points`.
             ///
-            /// Uses [`PlannerMode::Heuristic`] to decide algorithm variants.
-            /// For explicit control, use [`Self::with_mode`].
-            pub fn new(num_points: usize, direction: Direction) -> Self {
-                Self::with_mode(num_points, direction, PlannerMode::Heuristic)
+            /// Uses [`TwiddleMode::Auto`] and detects SIMD support once, so the
+            /// planner can be reused across many FFTs of the same size.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `num_points` is not a power of two.
+            pub fn new(num_points: usize) -> Self {
+                Self::with_twiddle_mode(num_points, TwiddleMode::Auto)
             }
 
-            /// Create a DIT planner with explicit control over algorithm selection.
+            /// Create a DIT planner with explicit control over twiddle storage.
             ///
-            /// - [`PlannerMode::Heuristic`]: Zero-cost static rule. Conservative — may
-            ///   leave performance on the table on platforms with large L1i caches.
-            /// - [`PlannerMode::Tune`]: Benchmarks both paths at plan time. Use this
-            ///   when you can afford extra planning time (e.g., planner is reused).
-            pub fn with_mode(num_points: usize, direction: Direction, mode: PlannerMode) -> Self {
+            /// `Auto` resolves once; [`Self::twiddle_mode`] reports the chosen mode.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `num_points` is not a power of two.
+            pub fn with_twiddle_mode(num_points: usize, mode: TwiddleMode) -> Self {
                 assert!(num_points > 0 && num_points.is_power_of_two());
 
                 let simd_level = fearless_simd::Level::new();
 
                 let log_n = num_points.ilog2() as usize;
-                let mut stage_twiddles = Vec::new();
+                let stage_twiddles = if mode.uses_low_memory::<$precision>(num_points) {
+                    PlanTwiddles::LowMemory(
+                        (6..log_n)
+                            .map(|stage| $twiddles::new(1 << (stage + 1)))
+                            .collect(),
+                    )
+                } else {
+                    PlanTwiddles::Precomputed(
+                        (6..log_n)
+                            .map(|stage| StoredTwiddles::<$precision>::new(1 << (stage + 1)))
+                            .collect(),
+                    )
+                };
 
-                // Pre-compute twiddles for each stage that needs them
-                for stage in 0..log_n {
-                    let dist = 1 << stage; // 2.pow(stage)
-                    let chunk_size = dist * 2;
-
-                    // Only stages with chunk_size > 64 need twiddles (we have SIMD kernels up to 64)
-                    if chunk_size > 64 {
-                        let mut twiddles_re = vec![0.0 as $precision; dist];
-                        let mut twiddles_im = vec![0.0 as $precision; dist];
-
-                        let angle_mult =
-                            -2.0 * std::$precision::consts::PI / chunk_size as $precision;
-                        for k in 0..dist {
-                            let angle = angle_mult * k as $precision;
-                            twiddles_re[k] = angle.cos();
-                            twiddles_im[k] = angle.sin();
-                        }
-
-                        stage_twiddles.push((twiddles_re, twiddles_im));
-                    }
-                }
-
-                let use_codelet_32 = Self::estimate_use_codelet_32(log_n);
-
-                let mut planner = Self {
+                Self {
                     stage_twiddles,
-                    direction,
                     log_n,
                     simd_level,
-                    use_codelet_32,
-                };
-
-                if matches!(mode, PlannerMode::Tune) {
-                    planner.tune_codelet_32(num_points);
                 }
-
-                planner
             }
 
-            /// Conservative, arch-independent heuristic for whether the 32-point
-            /// codelet is beneficial.
-            ///
-            /// At small sizes (N ≤ 8192) the codelet dominates runtime and
-            /// cross-block kernel eviction from the µop cache doesn't matter.
-            /// At large sizes the codelet's code footprint can evict the
-            /// cross-block kernel on platforms with small L1i caches (e.g., 32KB
-            /// on x86). Use [`PlannerMode::Tune`] to discover the real threshold
-            /// on your hardware.
-            fn estimate_use_codelet_32(log_n: usize) -> bool {
-                // Codelet needs at least 32 elements (5 stages)
-                if log_n < 5 {
-                    return false;
-                }
-
-                // Conservative threshold: enable only for N ≤ 8192 where the
-                // codelet dominates runtime. On platforms with large L1i (e.g.,
-                // Apple Silicon at 192KB), Tune mode will discover that the
-                // codelet wins at larger sizes too.
-                log_n <= 13
+            /// The resolved storage mode, always `Precomputed` or `LowMemory`.
+            pub fn twiddle_mode(&self) -> TwiddleMode {
+                self.stage_twiddles.mode()
             }
+        }
 
-            /// Benchmark both paths and set `use_codelet_32` to whichever is faster.
-            fn tune_codelet_32(&mut self, num_points: usize) {
-                if self.log_n < 5 {
-                    self.use_codelet_32 = false;
-                    return;
-                }
-
-                let opts = crate::options::Options {
-                    multithreaded_bit_reversal: false,
-                    smallest_parallel_chunk_size: usize::MAX,
-                };
-
-                // Generate random complex signal via xorshift64 (no rand dependency)
-                let mut rng_state: u64 = 0x517C_C1B7_2722_0A95;
-                let mut next_f = || -> $precision {
-                    rng_state ^= rng_state << 13;
-                    rng_state ^= rng_state >> 7;
-                    rng_state ^= rng_state << 17;
-                    (rng_state as $precision) / (u64::MAX as $precision) * 2.0 - 1.0
-                };
-                let reals_orig: Vec<$precision> = (0..num_points).map(|_| next_f()).collect();
-                let imags_orig: Vec<$precision> = (0..num_points).map(|_| next_f()).collect();
-                let mut reals = reals_orig.clone();
-                let mut imags = imags_orig.clone();
-
-                const WARMUP: usize = 3;
-                const ITERS: usize = 5;
-
-                // Time WITHOUT codelet
-                self.use_codelet_32 = false;
-                for _ in 0..WARMUP {
-                    reals.copy_from_slice(&reals_orig);
-                    imags.copy_from_slice(&imags_orig);
-                    $fft_func(&mut reals, &mut imags, &*self, &opts);
-                }
-
-                let mut best_without = std::time::Duration::MAX;
-                for _ in 0..ITERS {
-                    reals.copy_from_slice(&reals_orig);
-                    imags.copy_from_slice(&imags_orig);
-                    let start = std::time::Instant::now();
-                    $fft_func(&mut reals, &mut imags, &*self, &opts);
-                    best_without = best_without.min(start.elapsed());
-                }
-
-                // Time WITH codelet
-                self.use_codelet_32 = true;
-                for _ in 0..WARMUP {
-                    reals.copy_from_slice(&reals_orig);
-                    imags.copy_from_slice(&imags_orig);
-                    $fft_func(&mut reals, &mut imags, &*self, &opts);
-                }
-
-                let mut best_with = std::time::Duration::MAX;
-                for _ in 0..ITERS {
-                    reals.copy_from_slice(&reals_orig);
-                    imags.copy_from_slice(&imags_orig);
-                    let start = std::time::Instant::now();
-                    $fft_func(&mut reals, &mut imags, &*self, &opts);
-                    best_with = best_with.min(start.elapsed());
-                }
-
-                self.use_codelet_32 = best_with < best_without;
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("fft_size", &(1usize << self.log_n))
+                    .field("twiddle_mode", &self.twiddle_mode())
+                    .finish_non_exhaustive()
             }
         }
     };
 }
 
-impl_planner_dit_for!(
-    PlannerDit64,
-    f64,
-    crate::algorithms::dit::fft_64_dit_with_planner_and_opts
-);
-impl_planner_dit_for!(
-    PlannerDit32,
-    f32,
-    crate::algorithms::dit::fft_32_dit_with_planner_and_opts
-);
+impl_planner_dit_for!(PlannerDit64, f64, TwiddleTable64);
+impl_planner_dit_for!(PlannerDit32, f32, TwiddleTable32);
+
+// ---------------------------------------------------------------------------
+// R2C / C2R planners
+// ---------------------------------------------------------------------------
+
+/// Real-transform post/pre-processing uses the same sources, with 0.5 folded in.
+#[derive(Clone)]
+pub(crate) enum RealTwiddles<T, Compact> {
+    Precomputed(StoredTwiddles<T>),
+    LowMemory(Box<Compact>),
+}
+
+macro_rules! impl_planner_r2c_for {
+    ($struct_name:ident, $precision:ident, $dit_planner:ident, $compact:ident) => {
+        /// Planner for real-to-complex (R2C) and complex-to-real (C2R) FFTs.
+        ///
+        /// Uses the selected twiddle mode for both the inner half-length complex
+        /// FFT and the real-transform post/pre-processing. In low-memory mode,
+        /// total twiddle storage is O(log N). Input, output, and C2R scratch
+        /// requirements are unchanged.
+        ///
+        /// The planner is direction-agnostic. Namely, the same instance can drive both
+        /// R2C and C2R transforms.
+        #[derive(Clone)]
+        pub struct $struct_name {
+            /// Inner DIT planner for the N/2 complex FFT
+            pub(crate) dit_planner: $dit_planner,
+            /// Untangle/preprocess twiddles, including the 0.5 scale factor.
+            pub(crate) twiddles: RealTwiddles<$precision, $compact>,
+            /// Full real signal length N
+            pub(crate) n: usize,
+        }
+
+        impl $struct_name {
+            /// Create a planner for real FFTs of length `n`.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `n` is not a power of 2 or `n < 4`.
+            pub fn new(n: usize) -> Self {
+                Self::with_twiddle_mode(n, TwiddleMode::Auto)
+            }
+
+            /// Create a real-transform planner with selectable twiddle storage.
+            ///
+            /// `Auto` resolves using the half-length complex FFT's working-set
+            /// size. The resolved mode applies to both parts of the real plan.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `n` is not a power of 2 or `n < 4`.
+            pub fn with_twiddle_mode(n: usize, mode: TwiddleMode) -> Self {
+                assert!(n >= 4 && n.is_power_of_two(), "n must be a power of 2 >= 4");
+                let dit_planner = $dit_planner::with_twiddle_mode(n / 2, mode);
+                let twiddles = match &dit_planner.stage_twiddles {
+                    PlanTwiddles::Precomputed(_) => {
+                        RealTwiddles::Precomputed(StoredTwiddles::<$precision>::new_scaled(n, 0.5))
+                    }
+                    PlanTwiddles::LowMemory(_) => {
+                        RealTwiddles::LowMemory(Box::new($compact::new_scaled(n, 0.5)))
+                    }
+                };
+                Self {
+                    dit_planner,
+                    twiddles,
+                    n,
+                }
+            }
+
+            /// The resolved mode used by both the inner FFT and real twiddles.
+            pub fn twiddle_mode(&self) -> TwiddleMode {
+                self.dit_planner.twiddle_mode()
+            }
+        }
+
+        impl core::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($struct_name))
+                    .field("n", &self.n)
+                    .field("twiddle_mode", &self.twiddle_mode())
+                    .finish_non_exhaustive()
+            }
+        }
+    };
+}
+
+impl_planner_r2c_for!(PlannerR2c64, f64, PlannerDit64, TwiddleTable64);
+impl_planner_r2c_for!(PlannerR2c32, f32, PlannerDit32, TwiddleTable32);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! test_modes {
+        ($name:ident, $planner:ident, $float:ty) => {
+            #[test]
+            fn $name() {
+                let threshold = AUTO_LOW_MEMORY_BYTES / (2 * size_of::<$float>());
+                for (n, expected) in [
+                    (1, TwiddleMode::Precomputed),
+                    (threshold / 2, TwiddleMode::Precomputed),
+                    (threshold, TwiddleMode::LowMemory),
+                    (threshold * 2, TwiddleMode::LowMemory),
+                ] {
+                    assert_eq!($planner::new(n).twiddle_mode(), expected);
+                    for mode in [TwiddleMode::Precomputed, TwiddleMode::LowMemory] {
+                        let plan = $planner::with_twiddle_mode(n, mode);
+                        assert_eq!(plan.twiddle_mode(), mode);
+                        assert_eq!(plan.clone().twiddle_mode(), mode);
+                    }
+                }
+                // A billion-point low-memory plan must stay small. Constructing
+                // this also catches accidentally allocating the full tables.
+                let plan = $planner::with_twiddle_mode(1 << 30, TwiddleMode::LowMemory);
+                let PlanTwiddles::LowMemory(stages) = &plan.stage_twiddles else {
+                    panic!("wrong storage mode");
+                };
+                assert_eq!(stages.len(), 30 - 6);
+                assert!(std::mem::size_of_val(stages.as_slice()) < 32 * 1024);
+            }
+        };
+    }
+
+    test_modes!(dit_modes_f64, PlannerDit64, f64);
+    test_modes!(dit_modes_f32, PlannerDit32, f32);
+
+    macro_rules! test_real_modes {
+        ($name:ident, $planner:ident, $float:ty) => {
+            #[test]
+            fn $name() {
+                let threshold = AUTO_LOW_MEMORY_BYTES / size_of::<$float>();
+                for (n, expected) in [
+                    (4, TwiddleMode::Precomputed),
+                    (threshold / 2, TwiddleMode::Precomputed),
+                    (threshold, TwiddleMode::LowMemory),
+                ] {
+                    assert_eq!($planner::new(n).twiddle_mode(), expected);
+                    for mode in [TwiddleMode::Precomputed, TwiddleMode::LowMemory] {
+                        let plan = $planner::with_twiddle_mode(n, mode);
+                        assert_eq!(plan.twiddle_mode(), mode);
+                        assert_eq!(plan.clone().twiddle_mode(), mode);
+                        assert_eq!(plan.dit_planner.twiddle_mode(), mode);
+                        assert_eq!(
+                            matches!(plan.twiddles, RealTwiddles::LowMemory(_)),
+                            mode == TwiddleMode::LowMemory
+                        );
+                    }
+                }
+                // Also covers the real post-processing table: no O(N) allocation.
+                let plan = $planner::with_twiddle_mode(1 << 30, TwiddleMode::LowMemory);
+                assert!(matches!(plan.twiddles, RealTwiddles::LowMemory(_)));
+            }
+        };
+    }
+
+    test_real_modes!(real_modes_f64, PlannerR2c64, f64);
+    test_real_modes!(real_modes_f32, PlannerR2c32, f32);
+}

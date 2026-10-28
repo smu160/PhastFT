@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use num_complex::{Complex32, Complex64};
 use phastft::planner::{Direction, PlannerDit32, PlannerDit64};
-use phastft::{fft_32_interleaved_with_planner, fft_64_interleaved_with_planner};
+use phastft::{fft_f32_dit_interleaved_with_planner, fft_f64_dit_interleaved_with_planner};
 use utilities::{gen_random_signal_f32, gen_random_signal_f64};
 
 fn benchmark_fft_32_dit(n: usize, iterations: usize) {
@@ -22,11 +22,11 @@ fn benchmark_fft_32_dit(n: usize, iterations: usize) {
         });
 
     // Pre-create planner for DIT
-    let planner = PlannerDit32::new(signal.len(), Direction::Forward);
+    let planner = PlannerDit32::new(signal.len());
 
     let now = std::time::Instant::now();
     for _ in 0..iterations {
-        fft_32_interleaved_with_planner(&mut signal, &planner);
+        fft_f32_dit_interleaved_with_planner(&mut signal, Direction::Forward, &planner);
     }
     let elapsed = now.elapsed().as_nanos();
     let elapsed_per_iteration = elapsed / iterations as u128;
@@ -49,11 +49,11 @@ fn benchmark_fft_64_dit(n: usize, iterations: usize) {
         });
 
     // Pre-create planner for DIT
-    let planner = PlannerDit64::new(signal.len(), Direction::Forward);
+    let planner = PlannerDit64::new(signal.len());
 
     let now = std::time::Instant::now();
     for _ in 0..iterations {
-        fft_64_interleaved_with_planner(&mut signal, &planner);
+        fft_f64_dit_interleaved_with_planner(&mut signal, Direction::Forward, &planner);
     }
     let elapsed = now.elapsed().as_nanos();
     let elapsed_per_iteration = elapsed / iterations as u128;

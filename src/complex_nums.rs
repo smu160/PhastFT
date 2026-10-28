@@ -2,21 +2,27 @@
 //!
 //! They are not part of the public API because the module they're in is private.
 //! They can be accessed with `--features bench-internals` for benchmarking only.
-
 use bytemuck::{cast_slice, cast_slice_mut, Pod};
 use num_complex::Complex;
-use num_traits::Float;
 
-/// Separates data like `[1, 2, 3, 4]` into `([1, 3], [2, 4])` for any length
+/// Separates data like `[1, 2, 3, 4]` into `([1, 3], [2, 4])` for any *even* length
 pub fn deinterleave<T: Copy>(input: &[T]) -> (Vec<T>, Vec<T>) {
     // Despite relying on autovectorization, this is the fastest approach
     // because we don't need to initialize the output Vecs.
     // The Vecs are also allocated up front without intermediate reallocations.
     // This is faster than any implementation we could write without `unsafe`.
-    input.chunks_exact(2).map(|c| (c[0], c[1])).unzip()
+    input
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| (c[0], c[1]))
+        .unzip()
 }
 
-pub fn deinterleave_complex<T: Float + Pod>(signal: &[Complex<T>]) -> (Vec<T>, Vec<T>) {
+/// Splits complex values into separate real and imaginary vectors.
+///
+/// Inverse of [`combine_re_im`].
+pub fn deinterleave_complex<T: Copy + Pod>(signal: &[Complex<T>]) -> (Vec<T>, Vec<T>) {
     let complex_t: &[T] = cast_slice(signal);
     deinterleave(complex_t)
 }
@@ -27,7 +33,10 @@ pub fn deinterleave_complex<T: Float + Pod>(signal: &[Complex<T>]) -> (Vec<T>, V
 /// # Panics
 ///
 /// Panics if `reals.len() != imags.len()`.
-pub fn combine_re_im<T: Float>(reals: &[T], imags: &[T]) -> Vec<Complex<T>> {
+pub fn combine_re_im<T>(reals: &[T], imags: &[T]) -> Vec<Complex<T>>
+where
+    T: Copy,
+{
     assert_eq!(reals.len(), imags.len());
 
     reals
@@ -54,7 +63,7 @@ pub fn deinterleave_into<T: Copy>(input: &[T], output_a: &mut [T], output_b: &mu
     assert_eq!(output_a.len(), half);
     assert_eq!(output_b.len(), half);
 
-    for (i, c) in input.chunks_exact(2).enumerate() {
+    for (i, c) in input.as_chunks::<2>().0.iter().enumerate() {
         output_a[i] = c[0];
         output_b[i] = c[1];
     }
@@ -66,7 +75,9 @@ pub fn combine_re_im_into<T: Copy>(reals: &[T], imags: &[T], output: &mut [T]) {
     assert_eq!(output.len(), reals.len() * 2);
 
     for ((out, z_re), z_im) in output
-        .chunks_exact_mut(2)
+        .as_chunks_mut::<2>()
+        .0
+        .iter_mut()
         .zip(reals.iter())
         .zip(imags.iter())
     {
@@ -196,7 +207,7 @@ pub fn interleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], blo
 
     // Split data into one &mut slice per block.
     let mut block_slices: Vec<Option<&mut [T]>> =
-        data.chunks_exact_mut(block_size).map(|s| Some(s)).collect();
+        data.chunks_exact_mut(block_size).map(Some).collect();
 
     // Collect cycles: for each cycle leader, gather its block slices.
     // Every cycle has length at most k (since multiplying by 2 mod 2^k-1
@@ -234,11 +245,11 @@ pub fn interleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], blo
                 return;
             }
             // Save the last block
-            temp.copy_from_slice(&cycle_slices[cycle_len - 1]);
+            temp.copy_from_slice(cycle_slices[cycle_len - 1]);
             // Shift each block one position forward (from the end)
             for idx in (1..cycle_len).rev() {
                 let (left, right) = cycle_slices.split_at_mut(idx);
-                right[0].copy_from_slice(&left[idx - 1]);
+                right[0].copy_from_slice(left[idx - 1]);
             }
             // Place saved block at position 0
             cycle_slices[0].copy_from_slice(temp);
@@ -253,7 +264,7 @@ pub fn interleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], blo
         |temp_pair, chunk| {
             let (reals, imags) = chunk.split_at(block_size);
             combine_re_im_into(reals, imags, temp_pair);
-            chunk.copy_from_slice(&temp_pair);
+            chunk.copy_from_slice(temp_pair);
         },
     );
 }
@@ -385,7 +396,7 @@ pub fn deinterleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], b
 
     // Split data into one &mut slice per block.
     let mut block_slices: Vec<Option<&mut [T]>> =
-        data.chunks_exact_mut(block_size).map(|s| Some(s)).collect();
+        data.chunks_exact_mut(block_size).map(Some).collect();
 
     // Collect cycles: for each cycle leader, gather its block slices.
     // Every cycle has length at most k (since multiplying by 2 mod 2^k-1
@@ -424,11 +435,11 @@ pub fn deinterleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], b
                 return;
             }
             // Save the first block
-            temp.copy_from_slice(&cycle_slices[0]);
+            temp.copy_from_slice(cycle_slices[0]);
             // Shift each block one position backward (from the start)
             for idx in 0..cycle_len - 1 {
                 let (left, right) = cycle_slices.split_at_mut(idx + 1);
-                left[idx].copy_from_slice(&right[0]);
+                left[idx].copy_from_slice(right[0]);
             }
             // Place saved block at the last position
             cycle_slices[cycle_len - 1].copy_from_slice(temp);
@@ -440,7 +451,7 @@ pub fn deinterleave_inplace_parallel<T: Copy + Default + Send>(data: &mut [T], b
 mod tests {
     use rand::distr::StandardUniform;
     use rand::rngs::SmallRng;
-    use rand::{Rng, SeedableRng};
+    use rand::RngExt;
 
     use super::*;
 
@@ -451,7 +462,16 @@ mod tests {
     /// Slow but obviously correct implementation of deinterleaving,
     /// to be used in tests
     fn deinterleave_naive<T: Copy>(input: &[T]) -> (Vec<T>, Vec<T>) {
-        input.chunks_exact(2).map(|c| (c[0], c[1])).unzip()
+        let half_len = input.len() / 2;
+        let mut evens = Vec::with_capacity(half_len);
+        let mut odds = Vec::with_capacity(half_len);
+
+        for i in 0..half_len {
+            evens.push(input[2 * i]);
+            odds.push(input[2 * i + 1])
+        }
+        // assert_eq!(evens.len() + odds.len(), input.len());
+        (evens, odds)
     }
 
     #[test]
@@ -467,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_separate_and_combine_re_im() {
-        let mut rng = SmallRng::from_os_rng();
+        let mut rng = rand::make_rng::<SmallRng>();
         let complex_vec: Vec<f32> = (&mut rng)
             .sample_iter(StandardUniform)
             .take(16384)
@@ -497,8 +517,8 @@ mod tests {
         let half = n / 2;
 
         let mut original = vec![0.0; n];
-        for i in 0..n {
-            original[i] = i as f32;
+        for (i, value) in original.iter_mut().enumerate() {
+            *value = i as f32;
         }
 
         let mut data = original.clone();
@@ -533,8 +553,8 @@ mod tests {
                 let half = n / 2;
 
                 let mut original = vec![0.0f32; n];
-                for i in 0..n {
-                    original[i] = i as f32;
+                for (i, value) in original.iter_mut().enumerate() {
+                    *value = i as f32;
                 }
 
                 let mut data = original.clone();
@@ -570,8 +590,8 @@ mod tests {
                 let half = n / 2;
 
                 let mut original = vec![0.0f32; n];
-                for i in 0..n {
-                    original[i] = i as f32;
+                for (i, value) in original.iter_mut().enumerate() {
+                    *value = i as f32;
                 }
 
                 // Interleave first, then test that parallel deinterleave reverses it
@@ -629,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_separate_and_combine_re_im_into() {
-        let mut rng = SmallRng::from_os_rng();
+        let mut rng = rand::make_rng::<SmallRng>();
         let complex_vec: Vec<f32> = (&mut rng)
             .sample_iter(StandardUniform)
             .take(16384)
