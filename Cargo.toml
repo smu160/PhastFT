@@ -43,6 +43,10 @@ realfft = "3.5.0"
 utilities = { path = "utilities" }
 
 [[example]]
+name = "benchmark_layout_fft"
+required-features = ["bench-internals", "parallel"]
+
+[[example]]
 name = "benchmark_interleaved"
 required-features = ["complex-nums"]
 

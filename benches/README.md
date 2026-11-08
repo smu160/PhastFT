@@ -278,3 +278,60 @@ echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 
 ./profile.sh
 ```
+
+## End-to-end interleaved FFT layout comparison
+
+`examples/benchmark_layout_fft.rs` compares sequential out-of-place conversion
+(the old allocating wrapper, direct output into the input buffer, and reusable
+scratch) against sequential and parallel in-place conversion. Every timed call
+includes deinterleaving, a complete FFT, and reinterleaving. FFT options and the
+reused plan are identical across conversion strategies within each comparison.
+
+```bash
+cargo build --release --features bench-internals --example benchmark_layout_fft
+# precision, min/max log2(N), pool threads, FFT options, direction, samples, ms/sample
+target/release/examples/benchmark_layout_fft 32 6 25 16 default forward 20 5
+python3 benches/run_layout_fft.py                   # full study, runs sequentially
+python3 benches/analyze_layout_fft.py               # medians and quartiles
+python3 benches/analyze_layout_fft.py --plot        # additionally requires matplotlib
+```
+
+The default input policy uses fresh allocations outside timing, in batches of
+at most 256 transforms and approximately 1 MiB (at least one transform).
+`BENCH_REUSE_INPUT=1` instead resets reused input buffers outside timing.
+Plans and reusable out-of-place scratch are allocated outside timing; all
+allocations internal to the selected transform strategy are timed. Strategy
+order is shuffled for every sample. Each strategy's output is checked against
+the split-array FFT before timing. For small inputs, the in-place block size
+shrinks to the complex point count, matching the public wrapper.
+
+For peak RSS without the benchmark's validation/setup copies, select one size
+and strategy and set `BENCH_MEMORY=1`, for example:
+
+```bash
+BENCH_MEMORY=1 /usr/bin/time -v target/release/examples/benchmark_layout_fft \
+    64 25 25 16 default forward 1 0 ip_parallel
+```
+
+See [the measured results and recommendations](interleaved-results/report.txt),
+[summary CSV](interleaved-results/summary.csv), and
+[timing plot](interleaved-results/time.svg). These are machine-specific
+measurements; the benchmark does not change the library's dispatch policy.
+
+The public interleaved API now follows the planner's resolved `TwiddleMode`:
+in-place conversion for `LowMemory`, sequential out-of-place conversion for
+`Precomputed`, and the existing 32 MiB threshold for `Auto`. To measure this
+dispatch against fixed conversion strategies:
+
+```bash
+python3 benches/run_layout_dispatch.py
+# Or select the public API directly; modes may be comma-separated:
+target/release/examples/benchmark_layout_fft 32 21 22 16 default forward 20 10 api,ip_parallel,oop_direct
+BENCH_TWIDDLE_MODE=low-memory target/release/examples/benchmark_layout_fft \
+    32 12 12 16 default forward 20 10 api
+```
+
+`BENCH_TWIDDLE_MODE` accepts `auto` (default), `precomputed`, or `low-memory`.
+See [the dispatch results](interleaved-dispatch-results/report.txt) for the
+public API's timing and peak memory, including the trade-off below the shared
+32 MiB cutoff.
