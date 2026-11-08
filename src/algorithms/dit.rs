@@ -406,7 +406,7 @@ pub fn fft_f64_dit_with_planner_and_opts(
 }
 
 #[inline(always)] // required by fearless_simd
-fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
+pub(crate) fn fft_f64_dit_with_planner_and_opts_impl<S: Simd>(
     simd: S,
     reals: &mut [f64],
     imags: &mut [f64],
@@ -483,7 +483,7 @@ pub fn fft_f32_dit_with_planner_and_opts(
 }
 
 #[inline(always)] // required by fearless_simd
-fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
+pub(crate) fn fft_f32_dit_with_planner_and_opts_impl<S: Simd>(
     simd: S,
     reals: &mut [f32],
     imags: &mut [f32],
