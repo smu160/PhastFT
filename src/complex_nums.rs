@@ -328,11 +328,11 @@ pub fn deinterleave_inplace_sequential<T: Copy + Default + Send>(
 }
 
 /// Reverses the in-place interleaving, returning `[Re, Im, ...]` back to `[Reals | Imags]`.
-/// `data.len()` and `block_size` must both be powers of 2.
+/// `data.len()` must be a power of 2. Blocks shrink for small inputs.
 pub fn deinterleave_complex_inplace<T: Copy + Default + Send + Pod>(
     data: &mut [Complex<T>],
 ) -> (&mut [T], &mut [T]) {
-    let block_size = BLOCK_SIZE_BYTES / size_of::<T>();
+    let block_size = (BLOCK_SIZE_BYTES / size_of::<T>()).min(data.len());
     let flat_data: &mut [T] = cast_slice_mut(data);
     #[cfg(not(feature = "parallel"))]
     deinterleave_inplace_sequential(flat_data, block_size);
@@ -344,7 +344,7 @@ pub fn deinterleave_complex_inplace<T: Copy + Default + Send + Pod>(
 /// Performs an in-place interleaving of `[Reals | Imags]` into `[Re, Im, Re, Im...]`.
 /// `data.len()` must be a power of 2.
 pub fn interleave_complex_inplace<T: Copy + Default + Send + Pod>(data: &mut [Complex<T>]) {
-    let block_size = BLOCK_SIZE_BYTES / size_of::<T>();
+    let block_size = (BLOCK_SIZE_BYTES / size_of::<T>()).min(data.len());
     let flat_data: &mut [T] = cast_slice_mut(data);
     #[cfg(not(feature = "parallel"))]
     interleave_inplace_sequential(flat_data, block_size);
