@@ -119,7 +119,10 @@ don't hesitate to create an issue.
 
 **Threading.** If the `parallel` feature is enabled, the library uses 2 threads for bit reversal and all available threads for FFT calculation when it seems profitable.
 
-**Complex numbers.** The separate real/imaginary array API is faster and uses less memory than the interleaved complex API which allocates temporary buffers.
+**Complex numbers.** Supplying the real and imaginary components in separate slices
+is faster than processing complex numbers laid out `[(re, im), (re, im), ...]`.
+However, PhastFT can convert these to its native separate slice format efficiently,
+including multi-threading and in-place transformation for large sizes.
 
 ## Benchmarks
 

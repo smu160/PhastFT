@@ -42,6 +42,14 @@ rand = "0.10.1"
 realfft = "3.5.0"
 utilities = { path = "utilities" }
 
+[[example]]
+name = "benchmark_layout_fft"
+required-features = ["bench-internals", "parallel"]
+
+[[example]]
+name = "benchmark_interleaved"
+required-features = ["complex-nums"]
+
 [[bench]]
 name = "bench"
 harness = false
@@ -61,7 +69,7 @@ harness = false
 [[bench]]
 name = "interleave"
 harness = false
-required-features = ["complex-nums"]
+required-features = ["bench-internals"]
 
 [[bench]]
 name = "bit_reversal"
