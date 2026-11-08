@@ -10,16 +10,13 @@
 //! Select `api` to benchmark the public interleaved wrapper. Modes can be comma
 //! separated. BENCH_TWIDDLE_MODE=auto|precomputed|low-memory selects the plan.
 
+use std::hint::black_box;
+use std::time::{Duration, Instant};
+
 use num_complex::Complex;
-use phastft::{
-    complex_nums::*,
-    options::Options,
-    planner::{Direction, PlannerDit32, PlannerDit64, TwiddleMode},
-};
-use std::{
-    hint::black_box,
-    time::{Duration, Instant},
-};
+use phastft::complex_nums::*;
+use phastft::options::Options;
+use phastft::planner::{Direction, PlannerDit32, PlannerDit64, TwiddleMode};
 
 const MODES: &[&str] = &[
     "oop_old",
