@@ -13,7 +13,10 @@
 use num_complex::Complex;
 
 #[cfg(feature = "complex-nums")]
-use crate::complex_nums::{deinterleave_complex_inplace, interleave_complex_inplace};
+use crate::complex_nums::{
+    combine_re_im_into, deinterleave_complex, deinterleave_complex_inplace,
+    interleave_complex_inplace,
+};
 use crate::options::Options;
 use crate::planner::{Direction, PlannerDit32, PlannerDit64};
 
@@ -46,19 +49,28 @@ macro_rules! impl_fft_interleaved_for {
         /// slice of [`Complex`]. Analogous to the
         /// `fft_*_dit_with_planner_and_opts` family except for the input format.
         ///
-        /// The data is deinterleaved in place before the FFT and interleaved again
-        /// afterwards, using temporary scratch buffers.
+        /// Layout conversion follows the planner's resolved [`planner::TwiddleMode`]:
+        /// `LowMemory` converts in place using small scratch buffers and block
+        /// metadata; `Precomputed` uses separate real/imaginary buffers and writes
+        /// the result directly back into `signal`. `Auto` uses the planner's
+        /// existing size heuristic for both twiddle storage and layout conversion.
+        /// In-place conversion uses Rayon when the `parallel` feature is enabled;
+        /// out-of-place conversion is sequential. FFT threading follows `opts`.
         pub fn $func_name(
             signal: &mut [Complex<$precision>],
             direction: Direction,
             planner: &$planner,
             opts: &Options,
         ) {
-            {
+            if planner.twiddle_mode() == crate::planner::TwiddleMode::LowMemory {
                 let (reals, imags) = deinterleave_complex_inplace(signal);
                 $fft_func(reals, imags, direction, planner, opts);
+                interleave_complex_inplace(signal);
+            } else {
+                let (mut reals, mut imags) = deinterleave_complex(signal);
+                $fft_func(&mut reals, &mut imags, direction, planner, opts);
+                combine_re_im_into(&reals, &imags, bytemuck::cast_slice_mut(signal));
             }
-            interleave_complex_inplace(signal);
         }
     };
 }
@@ -517,6 +529,70 @@ mod tests {
         fft_f32_dit_with_planner_and_opts,
         5e-7,
         2e-6
+    );
+
+    #[cfg(feature = "complex-nums")]
+    macro_rules! test_interleaved_layout_modes {
+        ($name:ident, $float:ty, $planner:ty, $interleaved:ident, $split:ident, $auto_log:expr) => {
+            #[test]
+            fn $name() {
+                // Tiny inputs, both sides of the conversion block size, and
+                // both sides of Auto's low-memory boundary. Explicit modes
+                // must work even on the opposite side of that boundary.
+                for log_n in [0, 1, 2, 6, 9, 10, 11, 12, 14, $auto_log - 1, $auto_log] {
+                    let n = 1 << log_n;
+                    let input: Vec<Complex<$float>> = (0..n)
+                        .map(|i| {
+                            Complex::new(
+                                (i * 17 % 257) as $float / 128.0 - 1.0,
+                                (i * 31 % 251) as $float / 125.0 - 1.0,
+                            )
+                        })
+                        .collect();
+                    for mode in [
+                        TwiddleMode::Precomputed,
+                        TwiddleMode::LowMemory,
+                        TwiddleMode::Auto,
+                    ] {
+                        let planner = <$planner>::with_twiddle_mode(n, mode);
+                        let opts = Options::guess_options(n);
+                        for direction in [Direction::Forward, Direction::Inverse] {
+                            let mut actual = input.clone();
+                            let (mut re, mut im) = deinterleave_complex(&input);
+                            $split(&mut re, &mut im, direction, &planner, &opts);
+                            $interleaved(&mut actual, direction, &planner, &opts);
+                            for (i, ((actual, re), im)) in actual.iter().zip(re).zip(im).enumerate()
+                            {
+                                assert_eq!(
+                                    *actual,
+                                    Complex::new(re, im),
+                                    "N={n}, index={i}, mode={mode:?}, direction={direction:?}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "complex-nums")]
+    test_interleaved_layout_modes!(
+        interleaved_layout_modes_f32,
+        f32,
+        PlannerDit32,
+        fft_f32_dit_interleaved_with_planner_and_opts,
+        fft_f32_dit_with_planner_and_opts,
+        22
+    );
+    #[cfg(feature = "complex-nums")]
+    test_interleaved_layout_modes!(
+        interleaved_layout_modes_f64,
+        f64,
+        PlannerDit64,
+        fft_f64_dit_interleaved_with_planner_and_opts,
+        fft_f64_dit_with_planner_and_opts,
+        21
     );
 
     #[cfg(feature = "complex-nums")]

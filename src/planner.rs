@@ -16,8 +16,11 @@ pub enum Direction {
 
 /// How a plan stores and produces twiddle factors.
 ///
-/// This is a planning choice, independent of execution/threading options.
+/// This is chosen during planning rather than through execution/threading options.
 /// Both explicit modes support all transform sizes and directions.
+/// For interleaved complex FFTs, the resolved mode also selects layout
+/// conversion: `LowMemory` converts in place, while `Precomputed` uses
+/// scratch totaling the input size. `Auto` applies the same heuristic to both.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TwiddleMode {
     /// Store all general-stage twiddles: O(N) plan storage and vector loads
@@ -26,6 +29,7 @@ pub enum TwiddleMode {
     /// Store compact factor tables: O(log N) plan storage, generating twiddle
     /// vectors from independent anchors during execution. No long recurrence
     /// is used, so rounding error does not accumulate along a stage.
+    /// Interleaved complex FFTs also convert their data layout in place.
     LowMemory,
     /// Choose a mode once at plan construction using a size heuristic.
     /// Currently selects `LowMemory` when the complex input occupies at least
