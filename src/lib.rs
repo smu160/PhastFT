@@ -13,7 +13,10 @@
 use num_complex::Complex;
 
 #[cfg(feature = "complex-nums")]
-use crate::complex_nums::{deinterleave_complex32, deinterleave_complex64, interleave_complex};
+use crate::complex_nums::{
+    combine_re_im_into, deinterleave_complex, deinterleave_complex_inplace, interleave_complex,
+    interleave_complex_inplace,
+};
 use crate::options::Options;
 use crate::planner::{Direction, PlannerDit32, PlannerDit64};
 #[cfg(feature = "complex-nums")]
@@ -47,23 +50,33 @@ pub use algorithms::r2c::{
 
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_fft_interleaved_for {
-    ($func_name:ident, $precision:ty, $fft_func:ident, $deinterleaving_func: ident, $planner:ty) => {
+    ($func_name:ident, $precision:ty, $fft_func:ident, $planner:ty) => {
         /// FFT Interleaved — alternative entry point when the input data is a
         /// slice of [`Complex`]. Analogous to the
         /// `fft_*_dit_with_planner_and_opts` family except for the input format.
         ///
-        /// **Note**: This function has to make a deinterleaved copy of the data.
-        /// For maximum performance with minimal memory usage, use the split-array
-        /// `fft_*_dit_with_planner_and_opts` API directly.
+        /// Layout conversion follows the planner's resolved [`planner::TwiddleMode`]:
+        /// `LowMemory` converts in place using small scratch buffers and block
+        /// metadata; `Precomputed` uses separate real/imaginary buffers and writes
+        /// the result directly back into `signal`. `Auto` uses the planner's
+        /// existing size heuristic for both twiddle storage and layout conversion.
+        /// In-place conversion uses Rayon when the `parallel` feature is enabled;
+        /// out-of-place conversion is sequential. FFT threading follows `opts`.
         pub fn $func_name(
             signal: &mut [Complex<$precision>],
             direction: Direction,
             planner: &$planner,
             opts: &Options,
         ) {
-            let (mut reals, mut imags) = $deinterleaving_func(signal);
-            $fft_func(&mut reals, &mut imags, direction, planner, opts);
-            interleave_complex(&reals, &imags, signal);
+            if planner.twiddle_mode() == crate::planner::TwiddleMode::LowMemory {
+                let (reals, imags) = deinterleave_complex_inplace(signal);
+                $fft_func(reals, imags, direction, planner, opts);
+                interleave_complex_inplace(signal);
+            } else {
+                let (mut reals, mut imags) = deinterleave_complex(signal);
+                $fft_func(&mut reals, &mut imags, direction, planner, opts);
+                combine_re_im_into(&reals, &imags, bytemuck::cast_slice_mut(signal));
+            }
         }
     };
 }
@@ -73,7 +86,6 @@ impl_fft_interleaved_for!(
     fft_f32_dit_interleaved_with_planner_and_opts,
     f32,
     fft_f32_dit_with_planner_and_opts,
-    deinterleave_complex32,
     PlannerDit32
 );
 #[cfg(feature = "complex-nums")]
@@ -81,7 +93,6 @@ impl_fft_interleaved_for!(
     fft_f64_dit_interleaved_with_planner_and_opts,
     f64,
     fft_f64_dit_with_planner_and_opts,
-    deinterleave_complex64,
     PlannerDit64
 );
 
@@ -149,7 +160,7 @@ impl_fft_interleaved!(
 
 #[cfg(feature = "complex-nums")]
 macro_rules! impl_bluestein_interleaved_with_opts {
-    ($func_name:ident, $precision:ty, $planar_func:ident, $deinterleaving_func:ident, $planner:ty) => {
+    ($func_name:ident, $precision:ty, $planar_func:ident, $planner:ty) => {
         /// Interleaved [`Complex`] Bluestein FFT with reusable scratch.
         ///
         /// This wrapper allocates the two length-`N` arrays needed to
@@ -186,7 +197,7 @@ macro_rules! impl_bluestein_interleaved_with_opts {
                 planner.scratch_len(),
                 scratch_im.len()
             );
-            let (mut reals, mut imags) = $deinterleaving_func(signal);
+            let (mut reals, mut imags) = deinterleave_complex(signal);
             $planar_func(
                 &mut reals, &mut imags, direction, planner, opts, scratch_re, scratch_im,
             );
@@ -247,7 +258,6 @@ impl_bluestein_interleaved_with_opts!(
     fft_f64_bluestein_interleaved_with_planner_and_opts,
     f64,
     fft_f64_bluestein_with_planner_and_opts,
-    deinterleave_complex64,
     PlannerBluestein64
 );
 #[cfg(feature = "complex-nums")]
@@ -255,7 +265,6 @@ impl_bluestein_interleaved_with_opts!(
     fft_f32_bluestein_interleaved_with_planner_and_opts,
     f32,
     fft_f32_bluestein_with_planner_and_opts,
-    deinterleave_complex32,
     PlannerBluestein32
 );
 
@@ -669,43 +678,111 @@ mod tests {
     );
 
     #[cfg(feature = "complex-nums")]
+    macro_rules! test_interleaved_layout_modes {
+        ($name:ident, $float:ty, $planner:ty, $interleaved:ident, $split:ident, $auto_log:expr) => {
+            #[test]
+            fn $name() {
+                // Tiny inputs, both sides of the conversion block size, and
+                // both sides of Auto's low-memory boundary. Explicit modes
+                // must work even on the opposite side of that boundary.
+                for log_n in [0, 1, 2, 6, 9, 10, 11, 12, 14, $auto_log - 1, $auto_log] {
+                    let n = 1 << log_n;
+                    let input: Vec<Complex<$float>> = (0..n)
+                        .map(|i| {
+                            Complex::new(
+                                (i * 17 % 257) as $float / 128.0 - 1.0,
+                                (i * 31 % 251) as $float / 125.0 - 1.0,
+                            )
+                        })
+                        .collect();
+                    for mode in [
+                        TwiddleMode::Precomputed,
+                        TwiddleMode::LowMemory,
+                        TwiddleMode::Auto,
+                    ] {
+                        let planner = <$planner>::with_twiddle_mode(n, mode);
+                        let opts = Options::guess_options(n);
+                        for direction in [Direction::Forward, Direction::Inverse] {
+                            let mut actual = input.clone();
+                            let (mut re, mut im) = deinterleave_complex(&input);
+                            $split(&mut re, &mut im, direction, &planner, &opts);
+                            $interleaved(&mut actual, direction, &planner, &opts);
+                            for (i, ((actual, re), im)) in actual.iter().zip(re).zip(im).enumerate()
+                            {
+                                assert_eq!(
+                                    *actual,
+                                    Complex::new(re, im),
+                                    "N={n}, index={i}, mode={mode:?}, direction={direction:?}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "complex-nums")]
+    test_interleaved_layout_modes!(
+        interleaved_layout_modes_f32,
+        f32,
+        PlannerDit32,
+        fft_f32_dit_interleaved_with_planner_and_opts,
+        fft_f32_dit_with_planner_and_opts,
+        22
+    );
+    #[cfg(feature = "complex-nums")]
+    test_interleaved_layout_modes!(
+        interleaved_layout_modes_f64,
+        f64,
+        PlannerDit64,
+        fft_f64_dit_interleaved_with_planner_and_opts,
+        fft_f64_dit_with_planner_and_opts,
+        21
+    );
+
+    #[cfg(feature = "complex-nums")]
     #[test]
     fn fft_interleaved_correctness() {
-        let n = 10;
-        let big_n = 1 << n; // 2.pow(n)
-        let mut actual_signal: Vec<_> = (1..=big_n).map(|i| Complex::new(i as f64, 0.0)).collect();
-        let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f64).collect();
-        let mut expected_imags = vec![0.0; big_n];
+        for direction in [Direction::Forward, Direction::Inverse] {
+            let n = 14;
+            let big_n = 1 << n; // 2.pow(n)
+            let mut actual_signal: Vec<_> =
+                (1..=big_n).map(|i| Complex::new(i as f64, 0.0)).collect();
+            let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f64).collect();
+            let mut expected_imags = vec![0.0; big_n];
 
-        fft_f64_dit_interleaved(&mut actual_signal, Direction::Forward);
-        fft_f64_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
+            fft_f64_dit_interleaved(&mut actual_signal, direction);
+            fft_f64_dit(&mut expected_reals, &mut expected_imags, direction);
 
-        actual_signal
-            .iter()
-            .zip(expected_reals)
-            .zip(expected_imags)
-            .for_each(|((z, z_re), z_im)| {
-                assert_float_closeness(z.re, z_re, 1e-10);
-                assert_float_closeness(z.im, z_im, 1e-10);
-            });
+            actual_signal
+                .iter()
+                .zip(expected_reals)
+                .zip(expected_imags)
+                .for_each(|((z, z_re), z_im)| {
+                    assert_float_closeness(z.re, z_re, 1e-10);
+                    assert_float_closeness(z.im, z_im, 1e-10);
+                });
 
-        let n = 10;
-        let big_n = 1 << n; // 2.pow(n)
-        let mut actual_signal: Vec<_> = (1..=big_n).map(|i| Complex::new(i as f32, 0.0)).collect();
-        let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f32).collect();
-        let mut expected_imags = vec![0.0; big_n];
+            let n = 14;
+            let big_n = 1 << n; // 2.pow(n)
+            let mut actual_signal: Vec<_> =
+                (1..=big_n).map(|i| Complex::new(i as f32, 0.0)).collect();
+            let mut expected_reals: Vec<_> = (1..=big_n).map(|i| i as f32).collect();
+            let mut expected_imags = vec![0.0; big_n];
 
-        fft_f32_dit_interleaved(&mut actual_signal, Direction::Forward);
-        fft_f32_dit(&mut expected_reals, &mut expected_imags, Direction::Forward);
+            fft_f32_dit_interleaved(&mut actual_signal, direction);
+            fft_f32_dit(&mut expected_reals, &mut expected_imags, direction);
 
-        actual_signal
-            .iter()
-            .zip(expected_reals)
-            .zip(expected_imags)
-            .for_each(|((z, z_re), z_im)| {
-                assert_float_closeness(z.re, z_re, 1e-10);
-                assert_float_closeness(z.im, z_im, 1e-10);
-            });
+            actual_signal
+                .iter()
+                .zip(expected_reals)
+                .zip(expected_imags)
+                .for_each(|((z, z_re), z_im)| {
+                    assert_float_closeness(z.re, z_re, 1e-10);
+                    assert_float_closeness(z.im, z_im, 1e-10);
+                });
+        }
     }
 
     #[cfg(feature = "complex-nums")]
